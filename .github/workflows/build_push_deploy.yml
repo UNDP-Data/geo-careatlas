@@ -1,0 +1,69 @@
+name: Build and Deploy CareAtlas
+
+on:
+  push:
+    branches: ['main']
+  workflow_dispatch: # Allows manual trigger
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tag: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Essential to keep Git history for your 'push' logic
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+#   deploy:
+#     needs: build-and-push
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+
+#       - name: Set Kubernetes Context
+#         uses: azure/k8s-set-context@v3
+#         with:
+#           method: kubeconfig
+#           kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+#       - name: Deploy to AKS
+#         uses: azure/k8s-deploy@v5
+#         with:
+#           action: deploy
+#           # Following your 'cogserver' structure
+#           manifests: |
+#             backends/k8s/careatlas/yaml/deployment.yaml
+#           images: |
+#             ghcr.io/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.tag }}
