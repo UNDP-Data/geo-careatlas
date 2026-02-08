@@ -1,0 +1,10 @@
+services:
+  api:
+    build: .
+    container_name: careatlas
+    ports:
+      - "80:80"
+    volumes:
+      # Map ONLY the local src folder to the container's src folder
+      - ./src:/server/src
+    command: uv run uvicorn careatlas.app.server:app --host 0.0.0.0 --port 80 --reload --reload-dir /server/src
