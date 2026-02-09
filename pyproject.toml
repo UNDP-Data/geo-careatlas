@@ -15,8 +15,9 @@ dependencies = [
     "fastapi[standard]>=0.115.0",
     "marimo>=0.10.0",
     "uvicorn[standard]>=0.30.0",
-    "httpx>=0.27.0",       # Required if you reverse-proxy the editor
-    "gitpython>=3.1.0",    # For the 'Commit & Push' button logic
+    "httpx>=0.27.0", # Required if you reverse-proxy the editor
+    "gitpython>=3.1.0", # For the 'Commit & Push' button logic
+    "nicegui>=3.7.1",
 ]
 
 [dependency-groups]
