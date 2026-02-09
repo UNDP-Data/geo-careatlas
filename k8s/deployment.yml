@@ -28,6 +28,10 @@ spec:
         env:
         - name: PYTHONPATH
           value: "/server/src"
+        - name: FORWARDED_ALLOW_IPS
+          value: "*"
+        - name: PROXY_HEADERS
+          value: "true"
         resources:
           requests:
             cpu: "1000m"
