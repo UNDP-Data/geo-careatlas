@@ -1,0 +1,45 @@
+/* UNDP Design System Foundations */
+@import url('https://fonts.googleapis.com/css2?family=Saira:wght@400;700&display=swap');
+
+:root {
+    --undp-blue: #006db0;
+    --undp-yellow: #ffeb00;
+    --undp-black: #000000;
+    --undp-white: #ffffff;
+    --undp-grey: #f7f7f7;
+}
+
+body {
+    font-family: 'Saira', sans-serif !important;
+    background-color: var(--undp-grey);
+    margin: 0;
+}
+
+/* Sharp Edges - No Rounded Corners per UNS */
+.q-btn, .q-card, .q-field__inner, .q-btn--standard {
+    border-radius: 0px !important;
+}
+
+/* UNDP Typography */
+h1, h2, h3, .text-h1, .text-h2 {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Custom UNDP Card */
+.undp-card {
+    border-top: 5px solid var(--undp-blue) !important;
+    background: white;
+    box-shadow: none !important;
+    border-right: 1px solid #e0e0e0;
+    border-bottom: 1px solid #e0e0e0;
+    border-left: 1px solid #e0e0e0;
+}
+
+.undp-button-primary {
+    background-color: var(--undp-blue) !important;
+    color: white !important;
+    font-weight: 700;
+    text-transform: uppercase;
+}

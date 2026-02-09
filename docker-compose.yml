@@ -13,6 +13,7 @@ services:
     command: uv run uvicorn careatlas.app.server:app --host 0.0.0.0 --port 8000 --reload --reload-dir /server/src
     environment:
       - APP_ENV=dev
+      - NICEGUI_STORAGE_SECRET=${OAUTH_COOKIE_KEY}
 
   auth-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:latest
