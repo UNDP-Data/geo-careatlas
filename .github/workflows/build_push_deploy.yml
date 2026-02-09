@@ -66,6 +66,6 @@ jobs:
           action: deploy
          
           manifests: |
-            k8s/deployment.yaml
+            k8s/deployment.yml
           images: |
             ghcr.io/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.tag }}
