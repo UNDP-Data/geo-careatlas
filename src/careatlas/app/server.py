@@ -188,15 +188,16 @@ def undp_header(user: str):
 # --- 4. Page Routes ---
 @ui.page('/')
 async def main_index(request: Request):
-    apply_undp_theme()
     identity = get_user_identity(request)
+    
+    apply_undp_theme()
     undp_header(identity['email'])
 
     with ui.column().classes('w-full max-w-7xl mx-auto p-8'):
         
         ui.label('Content').classes('text-4xl font-bold text-black uppercase mb-2')
         ui.element('div').classes('w-20 h-1 bg-[#006db0] mb-12')
-        ui.label(f"Raw Headers: {dict(request.headers)}")
+        #ui.label(f"Raw Headers: {dict(request.headers)}")
 
         with ui.grid(columns='1fr 1fr 1fr').classes('w-full gap-8'):
             notebook_root = "src/careatlas/notebooks"
@@ -220,7 +221,7 @@ async def main_index(request: Request):
                                 ui.button('LOCKED', color='grey').classes('undp-btn w-full py-3').props('disabled')
                             else:
                                 ui.label('Access regional poverty and economic indicators.').classes('text-gray-500 text-sm mb-6')
-                                ui.button('Explore', on_click=lambda r=region: ui.navigate.to(f'/region/{r}')) \
+                                ui.button('Explore', on_click=lambda r=folder: ui.navigate.to(f'/{r}')) \
                                     .classes('undp-btn bg-[#006db0] text-white w-full py-3')
 
 # --- 5. Integrated Execution ---
