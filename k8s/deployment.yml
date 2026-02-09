@@ -15,11 +15,15 @@ spec:
       app: geo-careatlas
   template:
     metadata:
+      annotations:
+        # The GitHub Action replaces this with a unique SHA on every commit.
+        # This metadata change forces Kubernetes to pull the new image.
+        last-deployed: "${{ github.sha }}"
       labels:
         app: geo-careatlas
     spec:
       nodeSelector:
-        agentpool: manual # This forces the pod onto your 32GB node
+        agentpool: manual # This forces the pod onto your high-memory node
       containers:
       - name: geo-careatlas
         image: ghcr.io/undp-data/geo-careatlas
@@ -47,7 +51,7 @@ metadata:
   name: geo-careatlas-service
   namespace: care
 spec:
-  type: ClusterIP # Use ClusterIP when using Ingress
+  type: ClusterIP
   ports:
   - port: 80
     targetPort: 80
@@ -64,15 +68,14 @@ metadata:
     cert-manager.io/cluster-issuer: zerossl
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
 
-    # 1. AUTHENTICATION: Direct traffic to the proxy
+    # 1. AUTHENTICATION: Handshake with the OAuth2-Proxy
     nginx.ingress.kubernetes.io/auth-url: "http://github-oauth-svc.auth.svc.cluster.local:4180/oauth2/auth"
     nginx.ingress.kubernetes.io/auth-signin: "https://auth.undpgeohub.org/oauth2/start?rd=$escaped_request_uri"
     
-    # 2. THE BRIDGE: This is the ONLY required line to pass headers.
-    # It automatically maps these from the Proxy response to the App request.
+    # 2. IDENTITY BRIDGE: Passes verified user data to the app
     nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User,X-Auth-Request-Email,X-Forwarded-Groups"
 
-    # 3. TIMEOUTS: Keep these for your marimo/websocket stability
+    # 3. WEBSOCKET SUPPORT: Essential for NiceGUI/Marimo
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     
@@ -82,7 +85,7 @@ spec:
         - careatlas.undpgeohub.org
       secretName: care-cert
   rules:
-  - host: careatlas.undpgeohub.org # CHANGE THIS to your actual domain
+  - host: careatlas.undpgeohub.org
     http:
       paths:
       - path: /
