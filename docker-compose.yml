@@ -2,9 +2,43 @@ services:
   api:
     build: .
     container_name: careatlas
-    ports:
-      - "80:80"
+    # Expose is just documentation for internal ports
+    expose:
+      - "8000"
     volumes:
-      # Map ONLY the local src folder to the container's src folder
       - ./src:/server/src
-    command: uv run uvicorn careatlas.app.server:app --host 0.0.0.0 --port 80 --reload --reload-dir /server/src
+    env_file:
+      - .env
+    # Change --port to 8000
+    command: uv run uvicorn careatlas.app.server:app --host 0.0.0.0 --port 8000 --reload --reload-dir /server/src
+    environment:
+      - APP_ENV=dev
+
+  auth-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:latest
+    container_name: careatlas-proxy
+    ports:
+      - "8080:4180" # You visit http://localhost:8080
+    env_file:
+      - .env
+    environment:
+      - OAUTH2_PROXY_PROVIDER=github
+      - OAUTH2_PROXY_CLIENT_ID=${OAUTH_CLIENT_ID}
+      - OAUTH2_PROXY_CLIENT_SECRET=${OAUTH_CLIENT_SECRET}
+      - OAUTH2_PROXY_COOKIE_SECRET=${OAUTH_COOKIE_KEY}
+      - OAUTH2_PROXY_GITHUB_ORG=${OAUTH_ORG_NAME}
+      - OAUTH2_PROXY_GITHUB_TEAM=${OAUTH_TEAM_NAME}
+      # This MUST match the --port 8000 above
+      - OAUTH2_PROXY_UPSTREAMS=http://api:8000 
+      - OAUTH2_PROXY_HTTP_ADDRESS=0.0.0.0:4180
+      - OAUTH2_PROXY_REDIRECT_URL=http://localhost:8080/oauth2/callback
+      - OAUTH2_PROXY_COOKIE_SECURE=false
+      - OAUTH2_PROXY_PASS_USER_HEADERS=true
+      - OAUTH2_PROXY_PASS_BASIC_AUTH=true
+      - OAUTH2_PROXY_SET_XAUTHREQUEST=true
+      - OAUTH2_PROXY_PASS_ACCESS_TOKEN=true
+      ###
+      - OAUTH2_PROXY_PASS_HOST_HEADER=true
+      - OAUTH2_PROXY_PROXY_PREFIX=/oauth2
+
+      
