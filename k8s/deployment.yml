@@ -28,6 +28,10 @@ spec:
         env:
         - name: PYTHONPATH
           value: "/server/src"
+        - name: FORWARDED_ALLOW_IPS
+          value: "*"
+        - name: PROXY_HEADERS
+          value: "true" 
         resources:
           requests:
             cpu: "1000m"
@@ -65,13 +69,17 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
     nginx.ingress.kubernetes.io/configuration-snippet: |
+      # 1. Capture variables from the auth response headers
       auth_request_set $user $upstream_http_x_auth_request_user;
       auth_request_set $email $upstream_http_x_auth_request_email;
-      auth_request_set $groups $upstream_http_x_auth_request_groups;
+      auth_request_set $groups $upstream_http_x_forwarded_groups;
+
+      # 2. Inject them into the request sent to FastAPI
       proxy_set_header X-Forwarded-User $user;
       proxy_set_header X-Forwarded-Email $email;
       proxy_set_header X-Forwarded-Groups $groups;
 
+      
     # 1. Use the INTERNAL cluster URL for speed and reliability
     nginx.ingress.kubernetes.io/auth-url: "http://github-oauth-svc.auth.svc.cluster.local:4180/oauth2/auth"
     
