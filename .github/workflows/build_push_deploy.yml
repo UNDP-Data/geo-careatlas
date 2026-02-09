@@ -3,6 +3,8 @@ name: Build and Deploy CareAtlas
 on:
   push:
     branches: ['main']
+    paths-ignore:
+      - 'src/**'
   workflow_dispatch: # Allows manual trigger
 
 env:
