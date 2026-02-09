@@ -68,4 +68,4 @@ jobs:
           manifests: |
             k8s/deployment.yml
           images: |
-            ghcr.io/${{ env.IMAGE_NAME }}::${{ github.sha }}
+            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
