@@ -23,6 +23,7 @@ spec:
       containers:
       - name: geo-careatlas
         image: ghcr.io/undp-data/geo-careatlas:latest
+        image_pull_policy: Always
         ports:
         - containerPort: 80
         env:
