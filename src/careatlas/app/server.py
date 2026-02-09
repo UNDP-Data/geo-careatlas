@@ -68,16 +68,36 @@ def apply_undp_theme():
 
 
 @ui.page('/who-we-are')
-def who_we_are():
+def who_we_are(request: Request):
+    user = request.headers.get("x-forwarded-user", None)
     apply_undp_theme()
+    undp_header(user)
     ui.label("WHO WE ARE")
 
 
 @ui.page('/what-we-do')
-def who_we_are():
+def who_we_are(request: Request):
+    user = request.headers.get("x-forwarded-user", None)
     apply_undp_theme()
+    undp_header(user)
     ui.label("WHAT WE DO")
     
+    
+@ui.page('/our-impact')
+def who_we_are(request: Request):
+    user = request.headers.get("x-forwarded-user", None)
+    apply_undp_theme()
+    undp_header(user)
+    ui.label("OUR IMPACT")
+
+
+    
+@ui.page('/get-involved')
+def who_we_are(request: Request):
+    user = request.headers.get("x-forwarded-user", None)
+    apply_undp_theme()
+    undp_header(user)
+    ui.label("NOW OR NEVER")  
     
     
 
