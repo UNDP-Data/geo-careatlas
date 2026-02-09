@@ -46,24 +46,24 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-#   deploy:
-#     needs: build-and-push
-#     runs-on: ubuntu-latest
-#     steps:
-#       - uses: actions/checkout@v4
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-#       - name: Set Kubernetes Context
-#         uses: azure/k8s-set-context@v3
-#         with:
-#           method: kubeconfig
-#           kubeconfig: ${{ secrets.KUBE_CONFIG }}
+      - name: Set Kubernetes Context
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
 
-#       - name: Deploy to AKS
-#         uses: azure/k8s-deploy@v5
-#         with:
-#           action: deploy
-#           # Following your 'cogserver' structure
-#           manifests: |
-#             backends/k8s/careatlas/yaml/deployment.yaml
-#           images: |
-#             ghcr.io/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.tag }}
+      - name: Deploy to AKS
+        uses: azure/k8s-deploy@v5
+        with:
+          action: deploy
+         
+          manifests: |
+            k8s/deployment.yaml
+          images: |
+            ghcr.io/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.tag }}

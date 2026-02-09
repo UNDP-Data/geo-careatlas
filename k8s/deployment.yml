@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: care
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: geo-careatlas
+  namespace: care
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: geo-careatlas
+  template:
+    metadata:
+      labels:
+        app: geo-careatlas
+    spec:
+      nodeSelector:
+        agentpool: manual # This forces the pod onto your 32GB node
+      containers:
+      - name: geo-careatlas
+        image: ghcr.io/undp-data/geo-careatlas:latest
+        ports:
+        - containerPort: 80
+        env:
+        - name: PYTHONPATH
+          value: "/server/src"
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "3Gi"
+          limits:
+            cpu: "2000m"
+            memory: "8Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: geo-careatlas-service
+  namespace: care
+spec:
+  type: ClusterIP # Use ClusterIP when using Ingress
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: geo-careatlas
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: geo-careatlas-ingress
+  namespace: care
+  annotations:
+    kubernetes.io/ingress.class: addon-http-application-routing
+    cert-manager.io/cluster-issuer: zerossl
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Mandatory for FastAPI to know it's on HTTPS
+    nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
+    # WebSocket support for marimo editor
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  tls:
+    - hosts:
+        - careatlas.undpgeohub.org
+      secretName: care-cert
+  rules:
+  - host: careatlas.undpgeohub.org # CHANGE THIS to your actual domain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: geo-careatlas-service
+            port:
+              number: 80
