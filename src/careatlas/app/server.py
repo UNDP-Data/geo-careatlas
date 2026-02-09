@@ -175,6 +175,7 @@ async def main_index(request: Request):
     with ui.column().classes('w-full max-w-7xl mx-auto p-8'):
         
         ui.label('Content').classes('text-4xl font-bold text-black uppercase mb-2')
+        ui.label(f"Raw Headers: {dict(request.headers)}")
         ui.element('div').classes('w-20 h-1 bg-[#006db0] mb-12')
 
         with ui.grid(columns='1fr 1fr 1fr').classes('w-full gap-8'):

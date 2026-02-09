@@ -22,7 +22,7 @@ spec:
         agentpool: manual # This forces the pod onto your 32GB node
       containers:
       - name: geo-careatlas
-        image: ghcr.io/undp-data/geo-careatlas:latest
+        image: ghcr.io/undp-data/geo-careatlas
         imagePullPolicy: Always
         ports:
         - containerPort: 80
