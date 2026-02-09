@@ -8,6 +8,24 @@ from nicegui import ui, app as nicegui_app
 marimo_process = None
 
 
+def get_user_identity(request: Request):
+    """Checks both potential header prefixes (AKS vs Local Docker)."""
+    h = request.headers
+    
+    # Try AKS/Auth-Request style, then Local/Forwarded style
+    email = h.get("x-auth-request-email") or h.get("x-forwarded-email")
+    user = h.get("x-auth-request-user") or h.get("x-forwarded-user")
+    
+    # Do the same for groups if you need them
+    groups_raw = h.get("x-auth-request-groups") or h.get("x-forwarded-groups") or ""
+    groups = [g.strip() for g in groups_raw.split(",") if g.strip()]
+
+    return {
+        "email": email or "Guest User",
+        "user": user or "Guest",
+        "groups": groups
+    }
+
 
 def undp_vertical_mark():
     return ui.html("""
@@ -69,34 +87,38 @@ def apply_undp_theme():
 
 @ui.page('/who-we-are')
 def who_we_are(request: Request):
-    user = request.headers.get("x-forwarded-user", None)
+    
     apply_undp_theme()
-    undp_header(user)
+    identity = get_user_identity(request)
+    undp_header(identity['user'])
     ui.label("WHO WE ARE")
 
 
 @ui.page('/what-we-do')
 def who_we_are(request: Request):
-    user = request.headers.get("x-forwarded-user", None)
+    
     apply_undp_theme()
-    undp_header(user)
+    identity = get_user_identity(request)
+    undp_header(identity['user'])
     ui.label("WHAT WE DO")
     
     
 @ui.page('/our-impact')
 def who_we_are(request: Request):
-    user = request.headers.get("x-forwarded-user", None)
+    
     apply_undp_theme()
-    undp_header(user)
+    identity = get_user_identity(request)
+    undp_header(identity['user'])
     ui.label("OUR IMPACT")
 
 
     
 @ui.page('/get-involved')
 def who_we_are(request: Request):
-    user = request.headers.get("x-forwarded-user", None)
     apply_undp_theme()
-    undp_header(user)
+    identity = get_user_identity(request)
+    undp_header(identity['user'])
+    
     ui.label("NOW OR NEVER")  
     
     
@@ -167,16 +189,14 @@ def undp_header(user: str):
 @ui.page('/')
 async def main_index(request: Request):
     apply_undp_theme()
-    user = request.headers.get("x-forwarded-user", None)
-    # This header contains the email if configured in OAuth2-Proxy
-    email = request.headers.get("x-forwarded-email", None)
-    undp_header(email)
+    identity = get_user_identity(request)
+    undp_header(identity['email'])
 
     with ui.column().classes('w-full max-w-7xl mx-auto p-8'):
         
         ui.label('Content').classes('text-4xl font-bold text-black uppercase mb-2')
-        ui.label(f"Raw Headers: {dict(request.headers)}")
         ui.element('div').classes('w-20 h-1 bg-[#006db0] mb-12')
+        ui.label(f"Raw Headers: {dict(request.headers)}")
 
         with ui.grid(columns='1fr 1fr 1fr').classes('w-full gap-8'):
             notebook_root = "src/careatlas/notebooks"
