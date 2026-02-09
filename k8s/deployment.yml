@@ -62,37 +62,19 @@ metadata:
     kubernetes.io/ingress.class: addon-http-application-routing
     cert-manager.io/cluster-issuer: zerossl
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    # Mandatory for FastAPI to know it's on HTTPS
-    nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
-    # WebSocket support for marimo editor
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      # 1. Capture variables from the auth response headers
-      auth_request_set $user $upstream_http_x_auth_request_user;
-      auth_request_set $email $upstream_http_x_auth_request_email;
-      auth_request_set $groups $upstream_http_x_forwarded_groups;
-
-      # 2. Inject them into the request sent to FastAPI
-      proxy_set_header X-Forwarded-User $user;
-      proxy_set_header X-Forwarded-Email $email;
-      proxy_set_header X-Forwarded-Groups $groups;
-
-      
-    # 1. Use the INTERNAL cluster URL for speed and reliability
+    # 1. AUTHENTICATION: Direct traffic to the proxy
     nginx.ingress.kubernetes.io/auth-url: "http://github-oauth-svc.auth.svc.cluster.local:4180/oauth2/auth"
-    
-    # 2. Redirect to the EXTERNAL login page if not logged in
     nginx.ingress.kubernetes.io/auth-signin: "https://auth.undpgeohub.org/oauth2/start?rd=$escaped_request_uri"
     
-    # 3. CRITICAL: Tell Nginx to pass these headers back to your FastAPI app
+    # 2. THE BRIDGE: This is the ONLY required line to pass headers.
+    # It automatically maps these from the Proxy response to the App request.
     nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User,X-Auth-Request-Email,X-Forwarded-Groups"
+
+    # 3. TIMEOUTS: Keep these for your marimo/websocket stability
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     
-    # 4. Ensure cookies are passed to the auth-url
-    nginx.ingress.kubernetes.io/auth-snippet: |
-      proxy_set_header X-Forwarded-Groups $upstream_http_x_forwarded_groups;
-      proxy_set_header Cookie $http_cookie;
 spec:
   tls:
     - hosts:
