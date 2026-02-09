@@ -70,10 +70,16 @@ def apply_undp_theme():
 @ui.page('/who-we-are')
 def who_we_are():
     apply_undp_theme()
-    undp_header("Guest User")
     ui.label("WHO WE ARE")
 
 
+@ui.page('/what-we-do')
+def who_we_are():
+    apply_undp_theme()
+    ui.label("WHAT WE DO")
+    
+    
+    
 
 # --- 3. UI Components (UNS Compliant) ---
 def undp_header(user: str):
@@ -88,7 +94,7 @@ def undp_header(user: str):
             with ui.row().classes('items-center gap-6'):
                 undp_vertical_mark()
 
-                with ui.column().classes('gap-1'):
+                with ui.column().classes('gap-0 cursor-pointer').on('click', lambda: ui.navigate.to('/')):
                     ui.label('Gender Team').style(
                         f"""
                         font-family:{font_stack};
@@ -108,7 +114,6 @@ def undp_header(user: str):
                         line-height:1.2;
                         """
                     )
-
             # CENTER: navigation (optional)
             NAV = [
                 ("WHO WE ARE", "/who-we-are"),
@@ -128,10 +133,14 @@ def undp_header(user: str):
                     """)
 
             # RIGHT: utilities
-            with ui.row().classes('items-center gap-4'):
+            # with ui.row().classes('items-center gap-4'):
                 
-                ui.icon('account_circle').classes('text-[32px] text-gray-600')
-                ui.label(user).classes('text-[18px] font-medium text-gray-700')
+            #     ui.icon('account_circle').classes('text-[32px] text-gray-600')
+            #     ui.label(user).classes('text-[18px] font-medium text-gray-700')
+            with ui.column().classes('items-center gap-1 whitespace-nowrap text-center'):
+                ui.icon('account_circle').classes('text-[48px] text-gray-600')
+                ui.label(user).classes('text-[14px] text-gray-600').style('font-weight: 400 !important;')
+
 
 
 # --- 4. Page Routes ---
@@ -139,7 +148,9 @@ def undp_header(user: str):
 async def main_index(request: Request):
     apply_undp_theme()
     user = request.headers.get("x-forwarded-user", None)
-    undp_header(user)
+    # This header contains the email if configured in OAuth2-Proxy
+    email = request.headers.get("x-forwarded-email", None)
+    undp_header(email)
 
     with ui.column().classes('w-full max-w-7xl mx-auto p-8'):
         
