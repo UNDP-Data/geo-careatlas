@@ -16,9 +16,8 @@ spec:
   template:
     metadata:
       annotations:
-        # The GitHub Action replaces this with a unique SHA on every commit.
-        # This metadata change forces Kubernetes to pull the new image.
-        last-deployed: "${{ github.sha }}"
+        # This will be replaced by the GitHub Action
+        last-deployed: "RUN_ID_PLACEHOLDER"
       labels:
         app: geo-careatlas
     spec:

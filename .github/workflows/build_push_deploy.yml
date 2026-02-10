@@ -2,9 +2,10 @@ name: Build and Deploy CareAtlas
 
 on:
   push:
-    branches: ['main']
+    branches:
+      - main
     paths-ignore:
-      - 'src/**'
+      - 'src/careatlas/notebooks/**'
   workflow_dispatch: # Allows manual trigger
 
 env:
@@ -61,11 +62,17 @@ jobs:
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
           kubeconfig-encoding: base64
 
+      - name: Substitute Run ID
+        run: |
+          # This replaces the placeholder text with the actual unique Run ID
+          sed -i "s/RUN_ID_PLACEHOLDER/${{ github.run_id }}/g" k8s/deployment.yml
+
       - name: Deploy to AKS
         uses: azure/k8s-deploy@v5
         with:
           action: deploy
+          namespace: care
           manifests: |
             k8s/deployment.yml
           images: |
-            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ghcr.io/${{ env.IMAGE_NAME }}:${{ github.run_id }}
