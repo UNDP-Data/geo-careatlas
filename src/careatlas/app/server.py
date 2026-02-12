@@ -3,28 +3,7 @@ import subprocess
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from nicegui import ui, app as nicegui_app
-
-# --- 1. Process Management (Marimo Sidecar) ---
-marimo_process = None
-
-
-def get_user_identity(request: Request):
-    """Checks both potential header prefixes (AKS vs Local Docker)."""
-    h = request.headers
-    
-    # Try AKS/Auth-Request style, then Local/Forwarded style
-    email = h.get("x-auth-request-email") or h.get("x-forwarded-email")
-    user = h.get("x-auth-request-user") or h.get("x-forwarded-user")
-    
-    # Do the same for groups if you need them
-    groups_raw = h.get("x-auth-request-groups") or h.get("x-forwarded-groups") or ""
-    groups = [g.strip() for g in groups_raw.split(",") if g.strip()]
-
-    return {
-        "email": email or "Guest User",
-        "user": user or "Guest",
-        "groups": groups
-    }
+from .auth import get_user_identity, is_authenticated
 
 
 def undp_vertical_mark():
@@ -85,46 +64,28 @@ def apply_undp_theme():
     ''')
 
 
-@ui.page('/who-we-are')
-def who_we_are(request: Request):
-    
-    apply_undp_theme()
-    identity = get_user_identity(request)
-    undp_header(identity['user'])
-    ui.label("WHO WE ARE")
+
+def user_button(identity: dict):
+
+    signed_in = is_authenticated(identity=identity)
+    user_email = identity['email']
+    color = 'red' if signed_in else 'primary'
+    tooltip_text = f'Sign out\n {user_email}' if signed_in else 'Sign in'
+    action_url = '/oauth2/sign_out?rd=/' if signed_in else '/oauth2/start'
+
+    ui.button(
+        icon='account_circle',
+        on_click=lambda: ui.run_javascript(
+            f"window.location.href='{action_url}'"
+        ),
+    ).props(f'flat round dense color={color}') \
+     .classes('w-9 h-9 hover:scale-110 transition') \
+     .tooltip(tooltip_text)
 
 
-@ui.page('/what-we-do')
-def who_we_are(request: Request):
-    
-    apply_undp_theme()
-    identity = get_user_identity(request)
-    undp_header(identity['user'])
-    ui.label("WHAT WE DO")
-    
-    
-@ui.page('/our-impact')
-def who_we_are(request: Request):
-    
-    apply_undp_theme()
-    identity = get_user_identity(request)
-    undp_header(identity['user'])
-    ui.label("OUR IMPACT")
 
-
-    
-@ui.page('/get-involved')
-def who_we_are(request: Request):
-    apply_undp_theme()
-    identity = get_user_identity(request)
-    undp_header(identity['user'])
-    
-    ui.label("NOW OR NEVER")  
-    
-    
-
-# --- 3. UI Components (UNS Compliant) ---
-def undp_header(user: str):
+#--- 3. UI Components (UNS Compliant) ---
+def undp_header(identity: dict):
     font_stack = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 
     with ui.header().classes('bg-white border-b border-gray-200'):
@@ -174,56 +135,85 @@ def undp_header(user: str):
                         color:#111827;
                     """)
 
-            # RIGHT: utilities
-            # with ui.row().classes('items-center gap-4'):
-                
-            #     ui.icon('account_circle').classes('text-[32px] text-gray-600')
-            #     ui.label(user).classes('text-[18px] font-medium text-gray-700')
-            with ui.column().classes('items-center gap-1 whitespace-nowrap text-center'):
-                ui.icon('account_circle').classes('text-[48px] text-gray-600')
-                ui.label(user).classes('text-[14px] text-gray-600').style('font-weight: 400 !important;')
+            
+            # --- RIGHT SIDE: User Menu (enterprise-style) ---
+            with ui.row().classes('items-center gap-2'):
+                user_button(identity)
 
 
+
+
+
+def undp_layout(request: Request, title: str):
+    """Encapsulates shared page logic to avoid repetition."""
+    apply_undp_theme()
+    identity = get_user_identity(request)
+    # Note: Using identity['user'] consistently for the header
+    undp_header(identity)
+    if title:
+        with ui.column().classes('w-full max-w-7xl mx-auto px-6 lg:px-8'):
+            ui.label(title).classes('text-4xl font-bold text-black uppercase mb-2')
+            ui.element('div').classes('w-40 h-1 bg-[#006db0] mb-12')
+            # This allows the specific page content to follow below
+
+# --- 2. Cleaned Routes ---
+@ui.page('/who-we-are')
+def page_who_we_are(request: Request):
+    undp_layout(request, "Who We Are")
+    ui.label("Detailed information about our team and mission.")
+
+@ui.page('/what-we-do')
+def page_what_we_do(request: Request):
+    undp_layout(request, "What We Do")
+    ui.label("Explaining our core service offerings.")
+
+@ui.page('/our-impact')
+def page_our_impact(request: Request):
+    undp_layout(request, "Our Impact")
+    ui.label("Data and stories from the field.")
+
+@ui.page('/get-involved')
+def page_get_involved(request: Request):
+    undp_layout(request, "Get Involved")
+    ui.label("NOW OR NEVER")
 
 # --- 4. Page Routes ---
 @ui.page('/')
 async def main_index(request: Request):
+    undp_layout(request, "" )
     identity = get_user_identity(request)
     
     apply_undp_theme()
-    undp_header(identity['email'])
-
-    with ui.column().classes('w-full max-w-7xl mx-auto p-8'):
+    undp_header(identity)
+    
+    with ui.column().classes('w-full max-w-7xl mx-auto px-6 lg:px-8'):
         
-        ui.label('Content').classes('text-4xl font-bold text-black uppercase mb-2')
-        ui.element('div').classes('w-20 h-1 bg-[#006db0] mb-12')
-        #ui.label(f"Raw Headers: {dict(request.headers)}")
-        
-
-        with ui.grid(columns='1fr 1fr 1fr').classes('w-full gap-8'):
-            notebook_root = "src/careatlas/notebooks"
-            if os.path.exists(notebook_root):
-                folders = [d for d in os.listdir(notebook_root) if os.path.isdir(os.path.join(notebook_root, d))]
-                
-                for folder in folders:
-                    # Check for lock files
-                    is_locked = os.path.exists(os.path.join(notebook_root, folder, ".lock"))
+        with ui.element('div').classes('w-full min-w-0 break-words'):
+            
+            with ui.grid(columns='1fr 1fr 1fr').classes('w-full gap-8'):
+                notebook_root = "src/careatlas/notebooks"
+                if os.path.exists(notebook_root):
+                    folders = [d for d in os.listdir(notebook_root) if os.path.isdir(os.path.join(notebook_root, d))]
                     
-                    with ui.card().classes('undp-card p-0 overflow-hidden bg-white'):
-                        # UNDP Accent bar
-                        ui.element('div').classes(f"w-full h-1 {'bg-red-600' if is_locked else 'bg-[#006db0]'}")
+                    for folder in folders:
+                        # Check for lock files
+                        is_locked = os.path.exists(os.path.join(notebook_root, folder, ".lock"))
                         
-                        with ui.column().classes('p-8 w-full'):
-                            ui.label('Group').classes('text-[#006db0] text-[10px] font-bold tracking-widest')
-                            ui.label(folder).classes('text-2xl font-bold uppercase mb-4 text-black')
+                        with ui.card().classes('undp-card p-0 overflow-hidden bg-white'):
+                            # UNDP Accent bar
+                            ui.element('div').classes(f"w-full h-1 {'bg-red-600' if is_locked else 'bg-[#006db0]'}")
                             
-                            if is_locked:
-                                ui.label('Currently being updated by an editor.').classes('text-red-600 text-xs mb-6 italic')
-                                ui.button('LOCKED', color='grey').classes('undp-btn w-full py-3').props('disabled')
-                            else:
-                                ui.label('Access regional poverty and economic indicators.').classes('text-gray-500 text-sm mb-6')
-                                ui.button('Explore', on_click=lambda r=folder: ui.navigate.to(f'/{r}')) \
-                                    .classes('undp-btn bg-[#006db0] text-white w-full py-3')
+                            with ui.column().classes('p-8 w-full'):
+                                ui.label('Group').classes('text-[#006db0] text-[10px] font-bold tracking-widest')
+                                ui.label(folder).classes('text-2xl font-bold uppercase mb-4 text-black')
+                                
+                                if is_locked:
+                                    ui.label('Currently being updated by an editor.').classes('text-red-600 text-xs mb-6 italic')
+                                    ui.button('LOCKED', color='grey').classes('undp-btn w-full py-3').props('disabled')
+                                else:
+                                    ui.label('Access regional poverty and economic indicators.').classes('text-gray-500 text-sm mb-6')
+                                    ui.button('Explore', on_click=lambda r=folder: ui.navigate.to(f'/notebooks/{r}')) \
+                                        .classes('undp-btn bg-[#006db0] text-white w-full py-3')
 
 # --- 5. Integrated Execution ---
 ui.run_with(
