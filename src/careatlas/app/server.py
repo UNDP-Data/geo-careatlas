@@ -77,6 +77,7 @@ def user_button(request:Request):
     auth_base = os.getenv('AUTH_URL', '/oauth2').rstrip('/')
     app_base = os.getenv('APP_BASE_URL', str(request.base_url)).rstrip('/')
     
+    
     endpoint = 'sign_out' if signed_in else 'start'
     # 3. Build the URL dynamically
     action_url = f"{auth_base}/{endpoint}?rd={app_base}/"

@@ -66,6 +66,8 @@ jobs:
         run: |
           # This replaces the placeholder text with the actual unique Run ID
           sed -i "s/RUN_ID_PLACEHOLDER/${{ github.run_id }}/g" k8s/deployment.yml
+          sed -i "s|AUTH_URL_PLACEHOLDER|${{ vars.AUTH_URL }}|g" k8s/deployment.yml
+          
 
       - name: Deploy to AKS
         uses: azure/k8s-deploy@v5
