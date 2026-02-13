@@ -173,7 +173,7 @@ def undp_header(request:Request=None):
                 rd_path = u.path + (("?" + u.query) if u.query else "")
 
                 # return to the current app host (absolute URL)
-                rd = str(request.base_url).rstrip("/") + rd_path.strip('/')
+                rd = f'{str(request.base_url).rstrip("/")}/{rd_path.strip("/")})'
                 
                 final_url = f"{target_action}?rd={quote(rd, safe=':/%?=&')}"
                 tooltip_text = f'Sign out\n {email} to {final_url}' if is_authenticated else f'Sign in to {final_url}'
