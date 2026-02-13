@@ -168,16 +168,15 @@ def undp_header(request:Request=None):
                 color = 'red' if is_authenticated else 'blue'
                 target_action = f"{auth_url}/sign_out" if is_authenticated else f"{auth_url}/start"
                 final_url = f"{target_action}?rd=https://careatlas.undpgeohub.org/"
-                #tooltip_text = f'Sign out to {action_url}' if is_authenticated else f'Sign in to {action_url}'
+                tooltip_text = f'Sign out to {final_url}' if is_authenticated else f'Sign in to {final_url}'
                 with ui.link(target=final_url).style('display: contents; text-decoration: none !important;'):
                     ui.button(
                         icon='account_circle',
                         on_click=lambda: ui.navigate.to(final_url),
                     ).props(f'flat round dense color={color}') \
                     .classes('w-9 h-9 hover:scale-110 transition') \
-                    
-                    #.tooltip(tooltip_text)
-                ui.label(f'is_auth: {is_authenticated} ')
+                    .tooltip(tooltip_text)
+                    #ui.label(f'is_auth: {is_authenticated} ')
 
 
 
