@@ -152,34 +152,35 @@ def undp_header(request:Request=None):
                 final_url = f"{target_action}?rd={quote(rd, safe=':/%?=&')}"
                 tooltip_text = f'Sign out\n {email} to {final_url}' if is_authenticated else f'Sign in to {final_url}'
 
-                btn = ui.button(icon='account_circle') \
-                    .props(f'flat round dense color={color}') \
-                    .classes('w-9 h-9 hover:scale-110 transition') \
-                    .tooltip(tooltip_text)
-
-                async def go_auth():
-                    # --- visual feedback ---
-                    btn.props('loading')                # built-in quasar spinner overlay
-                    btn.props('icon=sync')              # change icon
-                    btn.classes(add='animate-spin')     # rotation animation
-
-                    await ui.run_javascript('await new Promise(r => requestAnimationFrame(r))')
-                    # gives browser one paint frame
-
-                    ui.navigate.to(final_url)
-
-                btn.on('click', go_auth)
+                
                 
                 
                 
                
-                # with ui.link(target=final_url).style('display: contents; text-decoration: none !important;'):
-                #     ui.button(
-                #         icon='account_circle',
-                #         on_click=lambda: ui.navigate.to(final_url),
-                #     ).props(f'flat round dense color={color}') \
-                #     .classes('w-9 h-9 hover:scale-110 transition') \
-                #     .tooltip(tooltip_text)
+                with ui.link(target=final_url).style('display: contents; text-decoration: none !important;'):
+                    # ui.button(
+                    #     icon='account_circle',
+                    #     on_click=lambda: ui.navigate.to(final_url),
+                    # ).props(f'flat round dense color={color}') \
+                    # .classes('w-9 h-9 hover:scale-110 transition') \
+                    # .tooltip(tooltip_text)
+                    btn = ui.button(icon='account_circle') \
+                    .props(f'flat round dense color={color}') \
+                    .classes('w-9 h-9 hover:scale-110 transition') \
+                    .tooltip(tooltip_text)
+
+                    async def go_auth():
+                        # --- visual feedback ---
+                        btn.props('loading')                # built-in quasar spinner overlay
+                        btn.props('icon=sync')              # change icon
+                        btn.classes(add='animate-spin')     # rotation animation
+
+                        await ui.run_javascript('await new Promise(r => requestAnimationFrame(r))')
+                        # gives browser one paint frame
+
+                        ui.navigate.to(final_url)
+
+                    btn.on('click', go_auth)
             
                     
 
