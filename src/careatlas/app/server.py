@@ -167,7 +167,15 @@ def undp_header(request:Request=None):
                 email = 'Guest' if not is_authenticated else auth['email']
                 color = 'red' if is_authenticated else 'blue'
                 target_action = f"{auth_url}/sign_out" if is_authenticated else f"{auth_url}/start"
-                final_url = f"{target_action}?rd=https://careatlas.undpgeohub.org/"
+                
+                # 3. Build the URL dynamically
+                u = urlparse(str(request.url))
+                rd_path = u.path + (("?" + u.query) if u.query else "")
+
+                # return to the current app host (absolute URL)
+                rd = str(request.base_url).rstrip("/") + rd_path.strip('/')
+                
+                final_url = f"{target_action}?rd={quote(rd, safe=':/%?=&')}"
                 tooltip_text = f'Sign out\n {email} to {final_url}' if is_authenticated else f'Sign in to {final_url}'
                 with ui.link(target=final_url).style('display: contents; text-decoration: none !important;'):
                     ui.button(
