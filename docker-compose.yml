@@ -14,6 +14,8 @@ services:
     environment:
       - APP_ENV=dev
       - NICEGUI_STORAGE_SECRET=${OAUTH_COOKIE_KEY}
+      - AUTH_URL=/oauth2
+      - APP_BASE_URL=http://localhost:8080
 
   auth-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:latest

@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from nicegui import ui, app as nicegui_app
 from .auth import get_user_identity, is_authenticated
+from urllib.parse import urlparse, urlunparse
 
 
 def undp_vertical_mark():
@@ -65,14 +66,23 @@ def apply_undp_theme():
 
 
 
-def user_button(identity: dict):
+def user_button(request:Request):
 
+    identity = get_user_identity(request=request)
     signed_in = is_authenticated(identity=identity)
     user_email = identity['email']
+    
+    
+    # Local fallback: "/oauth2" and the current request's base URL
+    auth_base = os.getenv('AUTH_URL', '/oauth2').rstrip('/')
+    app_base = os.getenv('APP_BASE_URL', str(request.base_url)).rstrip('/')
+    
+    endpoint = 'sign_out' if signed_in else 'start'
+    # 3. Build the URL dynamically
+    action_url = f"{auth_base}/{endpoint}?rd={app_base}/"
+    
     color = 'red' if signed_in else 'primary'
     tooltip_text = f'Sign out\n {user_email}' if signed_in else 'Sign in'
-    action_url = '/oauth2/sign_out?rd=/' if signed_in else '/oauth2/start'
-
     ui.button(
         icon='account_circle',
         on_click=lambda: ui.run_javascript(
@@ -85,7 +95,7 @@ def user_button(identity: dict):
 
 
 #--- 3. UI Components (UNS Compliant) ---
-def undp_header(identity: dict):
+def undp_header(request:Request=None):
     font_stack = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 
     with ui.header().classes('bg-white border-b border-gray-200'):
@@ -138,7 +148,7 @@ def undp_header(identity: dict):
             
             # --- RIGHT SIDE: User Menu (enterprise-style) ---
             with ui.row().classes('items-center gap-2'):
-                user_button(identity)
+                user_button(request=request)
 
 
 
@@ -149,7 +159,7 @@ def undp_layout(request: Request, title: str):
     apply_undp_theme()
     identity = get_user_identity(request)
     # Note: Using identity['user'] consistently for the header
-    undp_header(identity)
+    undp_header(request=request)
     if title:
         with ui.column().classes('w-full max-w-7xl mx-auto px-6 lg:px-8'):
             ui.label(title).classes('text-4xl font-bold text-black uppercase mb-2')
@@ -161,6 +171,8 @@ def undp_layout(request: Request, title: str):
 def page_who_we_are(request: Request):
     undp_layout(request, "Who We Are")
     ui.label("Detailed information about our team and mission.")
+    ui.label(str(request.url))
+    ui.label(str(request.base_url))
 
 @ui.page('/what-we-do')
 def page_what_we_do(request: Request):
@@ -180,12 +192,13 @@ def page_get_involved(request: Request):
 # --- 4. Page Routes ---
 @ui.page('/')
 async def main_index(request: Request):
-    undp_layout(request, "" )
-    identity = get_user_identity(request)
-    
+    undp_layout(request, "" ) 
     apply_undp_theme()
-    undp_header(identity)
-    
+    undp_header(request=request)
+    #ui.label(request.scope)
+    #ui.label(str(request.app))
+    ui.label(str(request.url))
+    ui.label(str(request.base_url))
     with ui.column().classes('w-full max-w-7xl mx-auto px-6 lg:px-8'):
         
         with ui.element('div').classes('w-full min-w-0 break-words'):
