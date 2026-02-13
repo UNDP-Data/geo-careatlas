@@ -107,10 +107,6 @@ def user_button(request:Request):
      .classes('w-9 h-9 hover:scale-110 transition') \
      .tooltip(tooltip_text)
 
-def auth(url, cookie):
-    
-   
-    ui.navigate.to(url)
     
 #--- 3. UI Components (UNS Compliant) ---
 def undp_header(request:Request=None):
@@ -167,14 +163,16 @@ def undp_header(request:Request=None):
             # --- RIGHT SIDE: User Menu (enterprise-style) ---
             with ui.row().classes('items-center gap-2'):
                 auth_url = os.getenv('AUTH_URL', '/oauth2').rstrip('/')
-                auth = check_auth(url=a)
-
-                color = 'secondary'# if signed_in else 'primary'
-                #tooltip_text = f'Sign out\n {user_email} to {action_url}' if signed_in else f'Sign in to {action_url}'
+                auth = check_auth(url=auth_url, request=request)
+                is_authenticated = auth['is_authenticated']
+                color = 'secondary' if is_authenticated else 'primary'
+                target_action = f"{auth_url}/sign_out" if is_authenticated else f"{auth_url}/start"
+                final_url = f"{target_action}?rd=https://careatlas.undpgeohub.org/"
+                #tooltip_text = f'Sign out to {action_url}' if is_authenticated else f'Sign in to {action_url}'
                 with ui.link(target='').style('display: contents; text-decoration: none !important;'):
                     ui.button(
                         icon='account_circle',
-                        on_click=auth(auth_base, cookie=cookie),
+                        on_click=lambda: ui.navigate.to(final_url),
                     ).props(f'flat round dense color={color}') \
                     .classes('w-9 h-9 hover:scale-110 transition') \
                     
