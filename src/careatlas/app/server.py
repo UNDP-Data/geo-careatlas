@@ -65,47 +65,20 @@ def apply_undp_theme():
             .undp-card:hover { border-color: var(--undp-blue); }
             .undp-btn { border-radius: 0 !important; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
             .undp-logo-block { background-color: var(--undp-blue); width: 48px; height: 64px; }
+            .animate-spin {
+                animation: spin 0.8s linear infinite;
+            }
+            @keyframes spin {
+                from { transform: rotate(0deg); }
+                to   { transform: rotate(360deg); }
+            }
         </style>
+       
+    
     ''')
 
 
 
-def user_button(request:Request):
-    
-
-    identity = get_user_identity(request=request)
-    signed_in = is_authenticated(identity=identity)
-    user_email = identity['email']
-    logger.info(f'UDRL is {request.url}')
-    
-    # # Local fallback: "/oauth2" and the current request's base URL
-    auth_base = os.getenv('AUTH_URL', '/oauth2').rstrip('/')
-    # #app_base = os.getenv('APP_BASE_URL', str(request.base_url)).rstrip('/')
-    
-    signed_in = False
-    endpoint = 'sign_out' if signed_in else 'start'
-    
-    
-    # 3. Build the URL dynamically
-    u = urlparse(str(request.url))
-    rd_path = u.path + (("?" + u.query) if u.query else "")
-
-    # return to the current app host (absolute URL)
-    rd = str(request.base_url).rstrip("/") + rd_path.strip('/')
-
-    action_url = f"{auth_base}/{endpoint}?rd={quote(rd, safe=':/%?=&')}"
-    
-
-    # logger.info(f'after click {endpoint} -> {action_url}')
-    
-    color = 'secondary' if signed_in else 'primary'
-    tooltip_text = f'Sign out\n {user_email} to {action_url}' if signed_in else f'Sign in to {action_url}'
-    ui.button(
-        icon='account_circle',
-        on_click=lambda: ui.navigate_to(action_url),
-    ).props(f'flat round dense color={color}') \
-     .classes('w-9 h-9 hover:scale-110 transition') \
-     .tooltip(tooltip_text)
 
     
 #--- 3. UI Components (UNS Compliant) ---
@@ -165,7 +138,8 @@ def undp_header(request:Request=None):
                 auth = check_auth(url=auth_url, request=request)
                 is_authenticated = auth['is_authenticated']
                 email = 'Guest' if not is_authenticated else auth['email']
-                color = 'red' if is_authenticated else 'blue'
+                color = 'green' if is_authenticated else 'gray'
+                
                 target_action = f"{auth_url}/sign_out" if is_authenticated else f"{auth_url}/start"
                 
                 # 3. Build the URL dynamically
@@ -177,13 +151,35 @@ def undp_header(request:Request=None):
                 
                 final_url = f"{target_action}?rd={quote(rd, safe=':/%?=&')}"
                 tooltip_text = f'Sign out\n {email} to {final_url}' if is_authenticated else f'Sign in to {final_url}'
-                with ui.link(target=final_url).style('display: contents; text-decoration: none !important;'):
-                    ui.button(
-                        icon='account_circle',
-                        on_click=lambda: ui.navigate.to(final_url),
-                    ).props(f'flat round dense color={color}') \
+
+                btn = ui.button(icon='account_circle') \
+                    .props(f'flat round dense color={color}') \
                     .classes('w-9 h-9 hover:scale-110 transition') \
                     .tooltip(tooltip_text)
+
+                async def go_auth():
+                    # --- visual feedback ---
+                    btn.props('loading')                # built-in quasar spinner overlay
+                    btn.props('icon=sync')              # change icon
+                    btn.classes(add='animate-spin')     # rotation animation
+
+                    await ui.run_javascript('await new Promise(r => requestAnimationFrame(r))')
+                    # gives browser one paint frame
+
+                    ui.navigate.to(final_url)
+
+                btn.on('click', go_auth)
+                
+                
+                
+               
+                # with ui.link(target=final_url).style('display: contents; text-decoration: none !important;'):
+                #     ui.button(
+                #         icon='account_circle',
+                #         on_click=lambda: ui.navigate.to(final_url),
+                #     ).props(f'flat round dense color={color}') \
+                #     .classes('w-9 h-9 hover:scale-110 transition') \
+                #     .tooltip(tooltip_text)
             
                     
 
