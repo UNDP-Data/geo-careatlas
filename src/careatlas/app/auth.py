@@ -1,4 +1,8 @@
 from fastapi import Request
+import httpx
+from nicegui import ui
+
+
 
 def is_authenticated(identity: dict):
     # Returns True if we have a real email, False if it's the default "Guest User"
@@ -23,3 +27,19 @@ def get_user_identity(request: Request):
         "groups": groups
     }
 
+
+def check_auth(url:str=None, request: Request = None):
+    # Pass the browser's cookies to the internal proxy service
+    with httpx.AsyncClient() as client:
+        try:
+            resp = client.get(url=url, headers={"Cookie": request.headers.get("cookie", "")})
+            if resp.status_code == 200:
+                return {
+                    "user": resp.headers.get("x-auth-request-user"),
+                    "email": resp.headers.get("x-auth-request-email"),
+                    "is_authenticated": True
+                }
+        except Exception as e:
+            print(f"Auth Service unreachable: {e}")
+            
+    return {"is_authenticated": False}

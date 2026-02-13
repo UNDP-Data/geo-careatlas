@@ -1,10 +1,14 @@
 import os
 import subprocess
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, APIRouter
 from nicegui import ui, app as nicegui_app
-from .auth import get_user_identity, is_authenticated
-from urllib.parse import urlparse, urlunparse
+from .auth import get_user_identity, is_authenticated, check_auth
+from urllib.parse import urlparse, urlunparse, quote
+import logging
+logging.basicConfig(level=logging.INFO)
+
+logger = logging.getLogger(__name__)
 
 
 def undp_vertical_mark():
@@ -67,34 +71,47 @@ def apply_undp_theme():
 
 
 def user_button(request:Request):
+    
 
     identity = get_user_identity(request=request)
     signed_in = is_authenticated(identity=identity)
     user_email = identity['email']
+    logger.info(f'UDRL is {request.url}')
     
-    
-    # Local fallback: "/oauth2" and the current request's base URL
+    # # Local fallback: "/oauth2" and the current request's base URL
     auth_base = os.getenv('AUTH_URL', '/oauth2').rstrip('/')
-    app_base = os.getenv('APP_BASE_URL', str(request.base_url)).rstrip('/')
+    # #app_base = os.getenv('APP_BASE_URL', str(request.base_url)).rstrip('/')
     
-    
+    signed_in = False
     endpoint = 'sign_out' if signed_in else 'start'
-    # 3. Build the URL dynamically
-    action_url = f"{auth_base}/{endpoint}?rd={app_base}/"
     
-    color = 'red' if signed_in else 'primary'
-    tooltip_text = f'Sign out\n {user_email}' if signed_in else 'Sign in'
+    
+    # 3. Build the URL dynamically
+    u = urlparse(str(request.url))
+    rd_path = u.path + (("?" + u.query) if u.query else "")
+
+    # return to the current app host (absolute URL)
+    rd = str(request.base_url).rstrip("/") + rd_path.strip('/')
+
+    action_url = f"{auth_base}/{endpoint}?rd={quote(rd, safe=':/%?=&')}"
+    
+
+    # logger.info(f'after click {endpoint} -> {action_url}')
+    
+    color = 'secondary' if signed_in else 'primary'
+    tooltip_text = f'Sign out\n {user_email} to {action_url}' if signed_in else f'Sign in to {action_url}'
     ui.button(
         icon='account_circle',
-        on_click=lambda: ui.run_javascript(
-            f"window.location.href='{action_url}'"
-        ),
+        on_click=lambda: ui.navigate_to(action_url),
     ).props(f'flat round dense color={color}') \
      .classes('w-9 h-9 hover:scale-110 transition') \
      .tooltip(tooltip_text)
 
-
-
+def auth(url, cookie):
+    
+   
+    ui.navigate.to(url)
+    
 #--- 3. UI Components (UNS Compliant) ---
 def undp_header(request:Request=None):
     font_stack = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
@@ -149,7 +166,19 @@ def undp_header(request:Request=None):
             
             # --- RIGHT SIDE: User Menu (enterprise-style) ---
             with ui.row().classes('items-center gap-2'):
-                user_button(request=request)
+                auth_url = os.getenv('AUTH_URL', '/oauth2').rstrip('/')
+                auth = check_auth(url=a)
+
+                color = 'secondary'# if signed_in else 'primary'
+                #tooltip_text = f'Sign out\n {user_email} to {action_url}' if signed_in else f'Sign in to {action_url}'
+                with ui.link(target='').style('display: contents; text-decoration: none !important;'):
+                    ui.button(
+                        icon='account_circle',
+                        on_click=auth(auth_base, cookie=cookie),
+                    ).props(f'flat round dense color={color}') \
+                    .classes('w-9 h-9 hover:scale-110 transition') \
+                    
+                    #.tooltip(tooltip_text)
 
 
 
