@@ -111,7 +111,6 @@ def user_button(request:Request):
 #--- 3. UI Components (UNS Compliant) ---
 def undp_header(request:Request=None):
     font_stack = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-    hisau = None
     with ui.header().classes('bg-white border-b border-gray-200'):
         with ui.row().classes(
             'w-full max-w-7xl mx-auto items-stretch justify-between h-20'
@@ -165,19 +164,19 @@ def undp_header(request:Request=None):
                 auth_url = os.getenv('AUTH_URL', '/oauth2').rstrip('/')
                 auth = check_auth(url=auth_url, request=request)
                 is_authenticated = auth['is_authenticated']
-                hisau = is_authenticated
+                email = 'Guest' if not is_authenticated else auth['email']
                 color = 'red' if is_authenticated else 'blue'
                 target_action = f"{auth_url}/sign_out" if is_authenticated else f"{auth_url}/start"
                 final_url = f"{target_action}?rd=https://careatlas.undpgeohub.org/"
-                #tooltip_text = f'Sign out\n {auth['email']} to {final_url}' if is_authenticated else f'Sign in to {final_url}'
+                tooltip_text = f'Sign out\n {email} to {final_url}' if is_authenticated else f'Sign in to {final_url}'
                 with ui.link(target=final_url).style('display: contents; text-decoration: none !important;'):
                     ui.button(
                         icon='account_circle',
                         on_click=lambda: ui.navigate.to(final_url),
                     ).props(f'flat round dense color={color}') \
                     .classes('w-9 h-9 hover:scale-110 transition') \
-                    #.tooltip(tooltip_text)
-            ui.label(f'is_auth: {hisau} ')
+                    .tooltip(tooltip_text)
+            
                     
 
 
