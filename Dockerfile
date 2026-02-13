@@ -18,14 +18,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# 4. Copy the entire repository
-# This includes your .python-version (3.11) and pyproject.toml
+# 4. Copy ONLY the lock/config files first
+COPY pyproject.toml uv.lock .python-version ./
+
+# 5. Install libraries (This layer is pulled from GHA cache if lock is unchanged)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-install-project
+
+# 6. NOW copy your local repo code (the part you edit often)
 COPY . .
 
-# 5. The 'Honest' Environment Build
-# uv sees .python-version, downloads 3.11, and builds the venv.
-# We don't use --system here because you want a managed 3.11 venv.
-RUN uv sync --frozen --no-dev --no-cache
+# 7. Fast link
+RUN uv sync --frozen --no-dev
 
 # 6. Runtime Configuration
 ENV PYTHONPATH="/server/src"
