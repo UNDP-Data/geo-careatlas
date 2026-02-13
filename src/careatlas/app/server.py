@@ -165,18 +165,19 @@ def undp_header(request:Request=None):
                 auth_url = os.getenv('AUTH_URL', '/oauth2').rstrip('/')
                 auth = check_auth(url=auth_url, request=request)
                 is_authenticated = auth['is_authenticated']
+                ui.label(f'is_auth: {is_authenticated} ')
                 color = 'red' if is_authenticated else 'blue'
                 target_action = f"{auth_url}/sign_out" if is_authenticated else f"{auth_url}/start"
                 final_url = f"{target_action}?rd=https://careatlas.undpgeohub.org/"
-                tooltip_text = f'Sign out\n {auth['email']} to {final_url}' if is_authenticated else f'Sign in to {final_url}'
+                #tooltip_text = f'Sign out\n {auth['email']} to {final_url}' if is_authenticated else f'Sign in to {final_url}'
                 with ui.link(target=final_url).style('display: contents; text-decoration: none !important;'):
                     ui.button(
                         icon='account_circle',
                         on_click=lambda: ui.navigate.to(final_url),
                     ).props(f'flat round dense color={color}') \
                     .classes('w-9 h-9 hover:scale-110 transition') \
-                    .tooltip(tooltip_text)
-                    #ui.label(f'is_auth: {is_authenticated} ')
+                    #.tooltip(tooltip_text)
+                    
 
 
 
