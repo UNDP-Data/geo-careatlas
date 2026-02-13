@@ -256,6 +256,9 @@ async def main_index(request: Request):
                                     ui.button('Explore', on_click=lambda r=folder: ui.navigate.to(f'/notebooks/{r}')) \
                                         .classes('undp-btn bg-[#006db0] text-white w-full py-3')
 
+
+
+
 # --- 5. Integrated Execution ---
 ui.run_with(
     app, 

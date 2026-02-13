@@ -30,7 +30,7 @@ def get_user_identity(request: Request):
 
 def check_auth(url:str=None, request: Request = None):
     # Pass the browser's cookies to the internal proxy service
-    with httpx.AsyncClient() as client:
+    with httpx.Client() as client:
         try:
             resp = client.get(url=url, headers={"Cookie": request.headers.get("cookie", "")})
             if resp.status_code == 200:
