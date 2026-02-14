@@ -2,6 +2,8 @@ from fastapi import Request
 import httpx
 from nicegui import ui
 
+import logging
+logger = logging.getLogger(__name__)
 
 
 def is_authenticated(identity: dict):
@@ -32,14 +34,34 @@ def check_auth(url:str=None, request: Request = None):
     # Pass the browser's cookies to the internal proxy service
     with httpx.Client() as client:
         try:
-            resp = client.get(url=url, headers={"Cookie": request.headers.get("cookie", "")})
-            if resp.status_code == 200:
+            headers = {
+                "X-Forwarded-Proto": "https", # Tell the proxy "pretend this is secure"
+                "X-Forwarded-Host": "localhost"
+            }
+            # Pass the cookies to the proxy
+            response = client.get(url, cookies=request.cookies, headers=headers)
+            
+            # We know 202 is our success code localy!
+            is_authenticated = response.status_code in [200, 202]
+            
+            if is_authenticated:
+                # 1. Get the email
+                email = response.headers.get('x-auth-request-email', 'Guest')
+                
+                # 2. Get the groups as a list
+                groups_raw = response.headers.get('x-auth-request-groups', '')
+                groups = [g.strip() for g in groups_raw.split(',')] if groups_raw else []
+                
+                # 3. Get the username
+                username = response.headers.get('x-auth-request-user', 'iferencik')
+                
                 return {
-                    "user": resp.headers.get("x-auth-request-user"),
-                    "email": resp.headers.get("x-auth-request-email"),
-                    "is_authenticated": True
+                    "is_authenticated": True, 
+                    "email": email, 
+                    "groups": groups, 
+                    "user": username
                 }
         except Exception as e:
-            print(f"Auth Service unreachable: {e}")
+            logger.error(f"Auth Service unreachable: {e}")
             
     return {"is_authenticated": False}

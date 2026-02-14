@@ -2,64 +2,43 @@ services:
   api:
     build: .
     container_name: careatlas
-    expose:
-      - "8000"
+    ports:
+      - "8080:8080" # Match the port in your uvicorn command
     volumes:
       - ./src:/server/src
-    command: uv run uvicorn careatlas.app.server:app --host 0.0.0.0 --port 8000 --reload --reload-dir /server/src
+    # Note: --reload-dir should point to where your code is inside the container
+    command: uv run uvicorn careatlas.app.server:app --host 0.0.0.0 --port 8080 --reload --reload-dir /server/src
     environment:
-      - APP_ENV=dev
       - NICEGUI_STORAGE_SECRET=${OAUTH_COOKIE_KEY}
-      # Public auth host (browser goes here)
-      - AUTH_URL=http://auth.careatlas.test/oauth2/
-      # Internal auth host (api -> auth-proxy)
-      - AUTH_INTERNAL_URL=http://auth-proxy:4180
+      - AUTH_URL=http://auth-proxy:4180/oauth2 # Fixed duplicate 'AUTH_URL=' typo
       - FORWARDED_ALLOW_IPS=*
+      - ENV=dev
 
   auth-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:latest
     container_name: careatlas-proxy
-    expose:
-      - "4180"
+    ports:
+      - "4180:4180"
     env_file:
       - .env
     environment:
-      # - OAUTH2_PROXY_LOGGING_LEVEL=debug
-      # - OAUTH2_PROXY_STANDARD_LOGGING=true
-      # - OAUTH2_PROXY_AUTH_LOGGING=true
-      - OAUTH2_PROXY_PROVIDER=github
-      - OAUTH2_PROXY_CLIENT_ID=${OAUTH_CLIENT_ID}
-      - OAUTH2_PROXY_CLIENT_SECRET=${OAUTH_CLIENT_SECRET}
-      - OAUTH2_PROXY_COOKIE_SECRET=${OAUTH_COOKIE_KEY}
-      - OAUTH2_PROXY_GITHUB_ORG=${OAUTH_ORG_NAME}
-      - OAUTH2_PROXY_GITHUB_TEAM=${OAUTH_TEAM_NAME}
-
-      # auth-service mode OR reverse-proxy mode:
-      # If you want auth-only like AKS, use static://200:
-      - OAUTH2_PROXY_UPSTREAMS=static://200
-
-      - OAUTH2_PROXY_HTTP_ADDRESS=0.0.0.0:4180
-      - OAUTH2_PROXY_REDIRECT_URL=http://auth.careatlas.test/oauth2/callback
-      - OAUTH2_PROXY_COOKIE_NAME=_oauth2_proxy  # Explicitly name it
-      - OAUTH2_PROXY_COOKIE_SECURE=false
-      - OAUTH2_PROXY_EMAIL_DOMAINS=*
-      - OAUTH2_PROXY_COOKIE_PATH=/
-      - OAUTH2_PROXY_COOKIE_SAMESITE=lax
-      - OAUTH2_PROXY_PROXY_PREFIX=/oauth2
-      - OAUTH2_PROXY_REVERSE_PROXY=true
-      - OAUTH2_PROXY_SET_XAUTHREQUEST=true
-      - OAUTH2_PROXY_PASS_USER_HEADERS=true
-      - OAUTH2_PROXY_PASS_HOST_HEADER=true
-      - OAUTH2_PROXY_COOKIE_DOMAINS=.careatlas.test
-      - OAUTH2_PROXY_WHITELIST_DOMAIN=.careatlas.test
-
-  web:
-    image: nginx:alpine
-    container_name: careatlas-web
-    ports:
-      - "80:80"
-    depends_on:
-      - api
-      - auth-proxy
-    volumes:
-      - ./nginx.local.conf:/etc/nginx/conf.d/default.conf:ro
+      OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:4180"
+      # Point this directly to your 'api' service name
+      OAUTH2_PROXY_UPSTREAMS: "http://api:8080" 
+      OAUTH2_PROXY_COOKIE_DOMAINS:
+      OAUTH2_PROXY_WHITELIST_DOMAINS: "localhost:4180,localhost:8080,.localhost"
+      OAUTH2_PROXY_PROVIDER: "github"
+      OAUTH2_PROXY_CLIENT_ID: ${OAUTH_CLIENT_ID}
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH_COOKIE_KEY}
+      OAUTH2_PROXY_GITHUB_ORG: ${OAUTH_ORG_NAME}
+      OAUTH2_PROXY_GITHUB_TEAM: ${OAUTH_TEAM_NAME}
+      # Required for local testing without HTTPS
+      OAUTH2_PROXY_COOKIE_SECURE: "false"
+      OAUTH2_PROXY_REDIRECT_URL: "http://localhost:4180/oauth2/callback"
+      #OAUTH2_PROXY_COOKIE_NAME: "_oauth2_proxy_local" # Helps avoid conflicts with production cookies
+      OAUTH2_PROXY_EMAIL_DOMAINS: "undp.org"
+      OAUTH2_PROXY_COOKIE_SAMESITE: "lax"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_PASS_USER_HEADERS: "true"
+      

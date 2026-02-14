@@ -1,14 +1,15 @@
 import os
 import subprocess
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, APIRouter
+from fastapi import FastAPI, Request
 from nicegui import ui, app as nicegui_app
 from .auth import get_user_identity, is_authenticated, check_auth
 from urllib.parse import urlparse, urlunparse, quote
 import logging
 logging.basicConfig(level=logging.INFO)
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
+
 
 
 def undp_vertical_mark():
@@ -35,19 +36,19 @@ def undp_vertical_mark():
 
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global marimo_process
-    # Start Marimo to serve the notebooks directory internally
-    marimo_process = subprocess.Popen([
-        "uv", "run", "marimo", "run", "src/careatlas/notebooks",
-        "--port", "8080", "--headless", "--no-token"
-    ])
-    yield
-    if marimo_process:
-        marimo_process.terminate()
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     global marimo_process
+#     # Start Marimo to serve the notebooks directory internally
+#     marimo_process = subprocess.Popen([
+#         "uv", "run", "marimo", "run", "src/careatlas/notebooks",
+#         "--port", "8080", "--headless", "--no-token"
+#     ])
+#     yield
+#     if marimo_process:
+#         marimo_process.terminate()
 
-app = FastAPI(title="UNDP CareAtlas", lifespan=lifespan)
+app = FastAPI(title="UNDP CareAtlas", lifespan=None)
 
 # --- 2. UNDP Design System Theme & Assets ---
 def apply_undp_theme():
@@ -134,28 +135,46 @@ def undp_header(request:Request=None):
             
             # --- RIGHT SIDE: User Menu (enterprise-style) ---
             with ui.row().classes('items-center gap-2'):
+                # auth_url = os.getenv('AUTH_URL', '/oauth2').rstrip('/')
+                # auth = check_auth(url=auth_url, request=request)
+                # is_authenticated = auth['is_authenticated']
+                # email = 'Guest' if not is_authenticated else auth['email']
+                # color = 'green' if is_authenticated else 'gray'                
+                # target_action = f"{auth_url}/sign_out" if is_authenticated else f"{auth_url}/start"
+                
+                # # 3. Build the URL dynamically
+                # u = urlparse(str(request.url))
+                # rd_path = u.path + (("?" + u.query) if u.query else "")
+
+                # # return to the current app host (absolute URL)
+                # rd = f'{str(request.base_url).rstrip("/")}/{rd_path.strip("/")}'
+                
+                # final_url = f"{target_action}?rd={quote(rd, safe=':/%?=&')}"
+                # tooltip_text = f'Sign out\n {email} to {final_url}' if is_authenticated else f'Sign in to {final_url}'
+
+                # 1. This is your single source of truth from Docker/AKS
                 auth_url = os.getenv('AUTH_URL', '/oauth2').rstrip('/')
-                auth = check_auth(url=auth_url, request=request)
+
+                # 2. Internal Check: Always use the env var + /auth
+                auth = check_auth(url=f"{auth_url}/auth", request=request)
                 is_authenticated = auth['is_authenticated']
                 email = 'Guest' if not is_authenticated else auth['email']
                 color = 'green' if is_authenticated else 'gray'
-                
-                target_action = f"{auth_url}/sign_out" if is_authenticated else f"{auth_url}/start"
-                
-                # 3. Build the URL dynamically
+
+                # 3. The "Browser" Fix: 
+                # If the URL contains 'auth-proxy', the browser needs 'localhost' instead.
+                # Otherwise (AKS), use the auth_url exactly as it is.
+                target_host = auth_url.replace('auth-proxy', 'localhost') if 'auth-proxy' in auth_url else auth_url
+
+                # 4. Build the redirect and final action
                 u = urlparse(str(request.url))
-                rd_path = u.path + (("?" + u.query) if u.query else "")
+                rd = f'{str(request.base_url).rstrip("/")}/{u.path.lstrip("/")}'
+                if u.query: rd += f"?{u.query}"
 
-                # return to the current app host (absolute URL)
-                rd = f'{str(request.base_url).rstrip("/")}/{rd_path.strip("/")}'
+                action = "sign_out" if is_authenticated else "start"
+                final_url = f"{target_host}/{action}?rd={quote(rd, safe=':/%?=&')}"
                 
-                final_url = f"{target_action}?rd={quote(rd, safe=':/%?=&')}"
                 tooltip_text = f'Sign out\n {email} to {final_url}' if is_authenticated else f'Sign in to {final_url}'
-
-                
-                
-                
-                
                
                 with ui.link(target=final_url).style('display: contents; text-decoration: none !important;'):
                     # ui.button(
