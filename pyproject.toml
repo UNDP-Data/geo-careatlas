@@ -30,3 +30,6 @@ dev = [
 # Tells Marimo to look in 'src' for local modules 
 # so 'import my_utils' works inside the notebook.
 pythonpath = ["src"]
+
+[tool.marimo.server]
+follow_symlink = true

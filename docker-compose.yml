@@ -36,9 +36,10 @@ services:
       # Required for local testing without HTTPS
       OAUTH2_PROXY_COOKIE_SECURE: "false"
       OAUTH2_PROXY_REDIRECT_URL: "http://localhost:4180/oauth2/callback"
-      #OAUTH2_PROXY_COOKIE_NAME: "_oauth2_proxy_local" # Helps avoid conflicts with production cookies
       OAUTH2_PROXY_EMAIL_DOMAINS: "undp.org"
       OAUTH2_PROXY_COOKIE_SAMESITE: "lax"
       OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
       OAUTH2_PROXY_PASS_USER_HEADERS: "true"
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      
       
