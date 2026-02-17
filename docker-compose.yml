@@ -7,7 +7,7 @@ services:
     volumes:
       - ./src:/server/src
     # Note: --reload-dir should point to where your code is inside the container
-    command: uv run uvicorn careatlas.app.server:app --host 0.0.0.0 --port 8080 --reload --reload-dir /server/src
+    command: uv run uvicorn careatlas.app.server:app --host 0.0.0.0 --port 8080 --reload --reload-dir /server/src/careatlas/app
     environment:
       - NICEGUI_STORAGE_SECRET=${OAUTH_COOKIE_KEY}
       - AUTH_URL=http://auth-proxy:4180/oauth2 # Fixed duplicate 'AUTH_URL=' typo

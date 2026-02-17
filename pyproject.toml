@@ -13,11 +13,16 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi[standard]>=0.115.0",
-    "marimo>=0.10.0",
     "uvicorn[standard]>=0.30.0",
     "httpx>=0.27.0", # Required if you reverse-proxy the editor
     "gitpython>=3.1.0", # For the 'Commit & Push' button logic
     "nicegui>=3.7.1",
+    "lonboard>=0.14.0",
+    "shapely>=2.1.2",
+    "pyarrow>=23.0.1",
+    "marimo>=0.19.11",
+    "fastapi-proxy-lib[standard]>=0.3.0",
+    "websockets>=16.0",
 ]
 
 [dependency-groups]
