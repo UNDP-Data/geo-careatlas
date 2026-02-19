@@ -1,8 +1,8 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, HTTPException, WebSocket, APIRouter, WebSocketDisconnect
-from nicegui import ui
-from .auth import get_user_identity, is_authenticated, check_auth
+from fastapi import FastAPI, Request, HTTPException
+from nicegui import ui, app as ui_app
+from .auth import check_auth
 from urllib.parse import urlparse,quote
 import logging
 from careatlas.app import marutil as mu
@@ -10,17 +10,16 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import RedirectResponse
 from pathlib import Path
 from starlette.routing import Mount
-from starlette.types import ASGIApp, Scope, Receive, Send
-from starlette.datastructures import Headers
-from marimo._utils.paths import marimo_package_path
 import uuid
 from careatlas.app.util import MarimoManager
 import asyncio
 import httpx
-from fastapi_proxy_lib.core.http import ReverseHttpProxy
-from fastapi_proxy_lib.core.websocket import ReverseWebSocketProxy
-from fastapi_proxy_lib.fastapi.router import RouterHelper
-import websockets
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+# This syncs the duality. 
+# It tells the app to use the 'X-Forwarded' headers sent by your proxy.
+
+
 
 
 
@@ -31,10 +30,7 @@ logging.getLogger("nicegui").setLevel(logging.WARNING)
 logger = logging.getLogger()
 # logger.name = 'careatlas'
 
-# 1. Setup the Helper and APIRouter
-helper = RouterHelper()
-router = APIRouter(prefix="/edit")
-
+UNDP_RED = "#E5243B"
 AUTH_URL = f"{os.getenv('AUTH_URL')}/auth"
 UPSTREAM_HOST = "127.0.0.1"
 # Initialize the proxy engines
@@ -49,39 +45,23 @@ NOTEBOOKS_DIR = (BASE_DIR / "notebooks").resolve()
 # --- Lifespan Logic ---
 
 async def lifespan(app: FastAPI):
-    # --- STARTUP ---
-    logger.info("Starting Marimo Manager Reaper...")
-    # Fire and forget the background task
-    reaper_task = asyncio.create_task(manager.cleanup_loop(max_idle_seconds=10))
-    #FIRST: Await the factory to get the actual context manager
-    proxy_lifespan_factory = helper.get_lifespan()
+    # STARTUP: Start the background 'maintenance' task
+    # This loop handles the 1800s timeout and the zombie cleanup
+    reaper_task = asyncio.create_task(manager.cleanup_loop(max_idle_seconds=1800))
     
-    # SECOND: Create the context manager instance for this app
-    proxy_cm = proxy_lifespan_factory(app)
+    yield  # The NiceGUI app runs here
     
-    # THIRD: Enter the library's lifecycle
-    async with proxy_cm:
-        yield  # The app (and NiceGUI) runs here
-    
-    # --- SHUTDOWN ---
-    logger.info("Shutting down: Killing all Marimo sessions...")
+    # SHUTDOWN: Fast break for Docker
     reaper_task.cancel()
-    try:
-        # Give the reaper a second to stop, then nuke all sessions
-        await asyncio.wait_for(reaper_task, timeout=2)
-    except (asyncio.CancelledError, asyncio.TimeoutError):
-        pass
     
     manager.shutdown_all()
-    logger.info("Marimo Manager shut down and sessions cleaned up.")
-
 
 manager = MarimoManager()
 
 
 app = FastAPI(title="UNDP CareAtlas", lifespan=lifespan)
 
-
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 def undp_vertical_mark():
     return ui.html("""
@@ -115,30 +95,51 @@ def apply_undp_theme():
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
         <style>
-            :root { --undp-blue: #006db0; }
-            body { font-family: 'Saira', sans-serif !important; background-color: #f7f7f7; }
-            .undp-card { border-radius: 0 !important; border: 1px solid #e0e0e0; box-shadow: none !important; }
-            .undp-card:hover { border-color: var(--undp-blue); }
-            .undp-btn { border-radius: 0 !important; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-            .undp-logo-block { background-color: var(--undp-blue); width: 48px; height: 64px; }
-            .animate-spin {
-                animation: spin 0.8s linear infinite;
+            :root { 
+                --undp-blue: #006db0; 
+                --undp-red: #E5243B; /* Added the official red here */
             }
+            
+            body { font-family: 'Saira', sans-serif !important; background-color: #f7f7f7; }
+            
+            .undp-card {
+                transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); /* Bouncy feel */
+                border: 2px solid transparent;
+                z-index: 1; /* Base layer */
+            }
+
+            .undp-card:hover {
+                /* 1. Scale up 3% in all directions */
+                transform: scale(1.01); 
+                
+                /* 2. Layered shadow for depth */
+                box-shadow: 0 15px 30px rgba(0,0,0,0.12), 0 10px 10px rgba(0,0,0,0.06);
+                
+                /* 3. Ensure it overlaps neighbors */
+                z-index: 10; 
+                
+                /* 4. Keep your hover border */
+                border: 2px solid #e0e0e0;
+            }
+            
+            .undp-btn { border-radius: 0 !important; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+            
+            /* Assuming the main logo stays blue, but you can change this to var(--undp-red) too! */
+            .undp-logo-block { background-color: var(--undp-blue); width: 48px; height: 64px; } 
+            
+            /* Consolidated your spin animations */
+            .animate-spin, .force-spin {
+                animation: spin 0.8s linear infinite !important;
+            }
+            
             @keyframes spin {
                 from { transform: rotate(0deg); }
                 to   { transform: rotate(360deg); }
             }
-            
-            .force-spin { animation: spin 1s linear infinite !important; }
-            @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        </style>
-       
-    
-    ''')
-
-
-
+    </style>
+''')
 
     
 #--- 3. UI Components (UNS Compliant) ---
@@ -175,6 +176,7 @@ def undp_header(request:Request=None):
                     )
             # CENTER: navigation (optional)
             NAV = [
+                ("OUR APPS", "/"),
                 ("WHO WE ARE", "/who-we-are"),
                 ("WHAT WE DO", "/what-we-do"),
                 ("OUR IMPACT", "/our-impact"),
@@ -190,67 +192,68 @@ def undp_header(request:Request=None):
                         text-transform:uppercase;
                         color:#111827;
                     """)
-
-            
-            # --- RIGHT SIDE: User Menu (enterprise-style) ---
+            # --- RIGHT SIDE: Identity + Actions ---
             with ui.row().classes('items-center gap-2'):
 
-                # 1. This is your single source of truth from Docker/AKS
-                auth_url = os.getenv('AUTH_URL', '/oauth2').rstrip('/')
-
-                # 2. Internal Check: Always use the env var + /auth
-                auth = check_auth(url=f"{auth_url}/auth", request=request)
-                is_authenticated = auth['is_authenticated']
-                email = 'Guest' if not is_authenticated else auth['email']
-                color = 'green' if is_authenticated else 'grey'
-
-                # 3. The "Browser" Fix: 
-                # If the URL contains 'auth-proxy', the browser needs 'localhost' instead.
-                # Otherwise (AKS), use the auth_url exactly as it is.
-                target_host = auth_url.replace('auth-proxy', 'localhost') if 'auth-proxy' in auth_url else auth_url
+                # 1. Internal Auth Check
+                internal_auth_base = "http://auth-proxy:4180/oauth2"
+                auth = check_auth(url=f"{internal_auth_base}/auth", request=request)
+                is_authenticated = auth.get('is_authenticated', False)
+                email = auth.get('email', 'Guest')
                 
-
-                # 4. Build the redirect and final action
+                # 2. Setup Redirection Logic
+                auth_url = os.getenv('AUTH_URL', '/oauth2').rstrip('/')
+                target_host = auth_url.replace('auth-proxy', 'localhost') if 'auth-proxy' in auth_url else auth_url
                 u = urlparse(str(request.url))
-                rd = f'{str(request.base_url).rstrip("/")}/{u.path.lstrip("/")}'
+                rd = f'http://localhost:8080{u.path}'
                 if u.query: rd += f"?{u.query}"
-
+                
                 action = "sign_out" if is_authenticated else "start"
                 final_url = f"{target_host}/{action}?rd={quote(rd, safe=':/%?=&')}"
-                
-                tooltip_text = f'Sign out \n{email} to {final_url}' if is_authenticated else f'Sign in {email}'
-                
-                #with ui.link(target=final_url).style('display: contents; text-decoration: none !important;'):
-                with ui.element('div').style('display:block;text-decoration: none !important;'):
-                    btn = ui.button(icon='account_circle') \
-                    .props(f'flat round dense color={color}') \
-                    .classes('w-9 h-9 hover:scale-110 transition') \
-                    .tooltip(tooltip_text)
+
+                # --- BUTTON 1: THE IDENTITY BUTTON (Your "Cool" Original) ---
+                with ui.element('div'):
+                    identity_btn = ui.button(icon='account_circle') \
+                        .props(f'flat round dense color={"green" if is_authenticated else "grey"}') \
+                        .classes('w-9 h-9 hover:scale-110 transition') \
+                        .tooltip(f'Connected as {email}' if is_authenticated else 'Sign In')
                     
                     async def go_auth():
-                        # --- visual feedback ---
-                        btn.props('loading')                # built-in quasar spinner overlay  
-                        btn.props('icon=sync')              # change icon
-                        btn.classes(add='animate-spin')     # rotation animation
-
+                        identity_btn.props('loading icon=sync')
+                        identity_btn.classes(add='animate-spin')
                         await ui.run_javascript('await new Promise(r => requestAnimationFrame(r))')
-                        # gives browser one paint frame
-
+                        
                         ui.navigate.to(final_url)
 
-                    btn.on('click', go_auth)
-                    
+                    identity_btn.on('click', go_auth)
+
+                # --- BUTTON 2: THE MANAGEMENT MENU (Second Button) ---
                 
-                    
+                if is_authenticated:
+                    # Subtle vertical divider
+                    ui.element('div').classes('w-[1px] h-6 bg-gray-300 mx-1')
 
+                    # Session Manager Icon
+                    ui.button(icon='dns').props('color="[#E5243B]"') \
+                        .props('flat round dense') \
+                        .classes('w-9 h-9 hover:scale-110 hover:text-[#E5243B] transition') \
+                        .tooltip('Session Manager') \
+                        .on('click', lambda: ui.navigate.to('/sessions'))
 
-
-
+                    # System Settings Icon
+                    ui.button(icon='tune').props('color="[#E5243B]"') \
+                        .props('flat round dense') \
+                        .classes('w-9 h-9 hover:scale-110 hover:text-[#E5243B] transition') \
+                        .tooltip('System Settings') \
+                        .on('click', lambda: ui.navigate.to('/settings'))
+                
+                
+        
 
 def undp_layout(request: Request, title: str):
     """Encapsulates shared page logic to avoid repetition."""
     apply_undp_theme()
-    identity = get_user_identity(request)
+    
     # Note: Using identity['user'] consistently for the header
     undp_header(request=request)
     if title:
@@ -263,27 +266,32 @@ def undp_layout(request: Request, title: str):
 @ui.page('/who-we-are')
 def page_who_we_are(request: Request):
     undp_layout(request, "Who We Are")
-    ui.label("Detailed information about our team and mission.")
-    ui.label(str(request.url))
-    ui.label(str(request.base_url))
+    with ui.column().classes('w-full max-w-7xl mx-auto px-6 lg:px-8'):
+        ui.label("Detailed information about our team and mission.")
+        ui.label(str(request.url))
+        ui.label(str(request.base_url))
 
 @ui.page('/what-we-do')
 def page_what_we_do(request: Request):
     undp_layout(request, "What We Do")
-    ui.label("Explaining our core service offerings.")
+    with ui.column().classes('w-full max-w-7xl mx-auto px-6 lg:px-8'):
+        ui.label("Explaining our core service offerings.")
 
 @ui.page('/our-impact')
 def page_our_impact(request: Request):
     undp_layout(request, "Our Impact")
-    ui.label("Data and stories from the field.")
+    with ui.column().classes('w-full max-w-7xl mx-auto px-6 lg:px-8'):
+        ui.label("Data and stories from the field.")
 
 @ui.page('/get-involved')
 def page_get_involved(request: Request):
     undp_layout(request, "Get Involved")
-    ui.label("NOW OR NEVER")
+    with ui.column().classes('w-full max-w-7xl mx-auto px-6 lg:px-8'):
+        ui.label("NOW OR NEVER")
     
 
 
+    
 @app.get("/edit/open/{notebook_name:path}") # Added :path for subfolders
 def edit(notebook_name: str, request: Request):
    
@@ -293,7 +301,7 @@ def edit(notebook_name: str, request: Request):
    
     logger.error(auth_url)
     # 1. Identity & Auth Check
-    auth=check_auth(url=auth_url, request=request, forward_headers=True)
+    auth=check_auth(url=AUTH_URL.replace('localhost', 'auth-proxy'), request=request, forward_headers=True)
    
     
     if not auth.get('is_authenticated'):
@@ -311,169 +319,50 @@ def edit(notebook_name: str, request: Request):
 
     # 3. Idempotency: Join existing session if available
     existing = next((s for s in manager._sessions.values() if s.notebook_path == str(notebook_path)), None)
+    # 1. Join existing or Start new session
+    existing = next((s for s in manager._sessions.values() if s.notebook_path == str(notebook_path)), None)
+    
     if existing:
-        return RedirectResponse(url=f"{existing.base_url}/")
+        # Include PORT in the URL so mitmproxy can route it
+        response = RedirectResponse(url=f"/edit/{existing.session_id}/", headers=request.headers)
+        response.set_cookie(
+            key=f"marimo_port_{existing.session_id}", 
+            value=str(existing.port),
+            path=f"/",
+            max_age=14400,  # 4 hours
+            samesite="lax",
+            secure=True  # Ensure this is True for AKS/HTTPS
+            
+        )
+        return response
 
     session_id = uuid.uuid4().hex[:8]
-
     try:
-        # Start via manager - base_prefix matches our proxy route
         session = manager.start_session(
             session_id=session_id, 
             notebook=str(notebook_path),
-            base_prefix="/edit"
+            # Marimo base_prefix should match the path AFTER the port is stripped
+            base_prefix=f"/edit",
+            identity=auth
         )
-        return RedirectResponse(url=f"{session.base_url}/")
         
-    except Exception as e:
-        logger.error(f"Failed to launch notebook {notebook_name}: {e}")
-        raise HTTPException(status_code=500, detail="Kernel startup failed")
-    
-@router.api_route("/{session_id}/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
-async def dynamic_marimo_http(request: Request, session_id: str, path: str):
-    session = manager._sessions.get(session_id)
-    if not session:
-        raise HTTPException(status_code=404)
-
-    manager.touch(session_id)
-   
-    # Overwrite the security-sensitive ones
-    target_host = f"{UPSTREAM_HOST}:{session.port}"
-    # 1. Convert existing headers to a standard mutable dictionary
-    # This automatically includes all your X-Auth headers from oauth2-proxy
-    custom_headers = dict(request.headers)
-
-    # 2. Perform the DICT UPDATE for the internal proxy requirements
-    custom_headers.update({
-        "host": target_host,
-        "origin": f"http://{target_host}",
-        "referer": f"http://{target_host}/",
-    })
-    
-    
-
-    # 3. Repack the dict back into the request's internal ASGI scope
-    # This is the "magic" that makes the proxy library see your changes
-    request.scope["headers"] = [
-        (k.lower().encode("latin-1"), v.encode("latin-1"))
-        for k, v in custom_headers.items()
-    ]
-    request._headers = Headers(raw=request.scope["headers"])
-   
-    
-    # 3. VERIFY: If this print doesn't show your email, the proxy won't either
-    logger.info(f"Final verify before proxy call: {request.headers.get('x-auth-request-email')}")
-    # Use the high-level class directly
-    proxy = ReverseHttpProxy(base_url=f"http://{UPSTREAM_HOST}:{session.port}/", client=async_client)
-    # FIX: Pass 'request' and 'path' as keyword arguments
-    # We lstrip the internal path to avoid double slashes like '...:port//edit/...'
-    full_internal_path = f"{session.base_url}/{path}".lstrip("/")
-    
-    return await proxy.proxy(request=request, path=full_internal_path)
-    
-    # # Forward the session-prefixed path Marimo expects
-    # return await proxy.proxy(request, path=f"{session.base_url}/{path}")
-
-class MarimoWSProxy(ReverseWebSocketProxy):
-    """
-    A specialized proxy that spoofs headers to bypass Marimo's security.
-    """
-
-    
-    async def get_target_request_headers(self, websocket, **kwargs):
-        # Get the original headers from the library
-        headers = await super().get_target_request_headers(websocket, **kwargs)
-        
-        # SPOSTING: Make Marimo think the request is coming from itself
-        # This kills the 403 Forbidden/Silent Disconnect
-        target_host = f"{UPSTREAM_HOST}:{websocket.path_params.get('port', '8000')}" #TODO fix the port 
-        headers["host"] = target_host
-        headers["origin"] = f"http://{target_host}"
-        # 2. THE 1002 FIX: Kill WebSocket compression extensions
-        # This prevents the "Reserved bit set unexpectedly" error
-        if "sec-websocket-extensions" in headers:
-            del headers["sec-websocket-extensions"]
-        
-        return headers
-
-@app.websocket("/edit/{session_id}/{path:path}")
-async def dynamic_marimo_ws(websocket: WebSocket, session_id: str, path: str):
-    session = manager._sessions.get(session_id)
-    if not session:
-        return # Session not found, close immediately
-
-    manager.touch(session_id)
-    
-    # 1. Reconstruct the internal target (Translating: proxy_pass)
-    query = f"?{websocket.query_params}" if websocket.query_params else ""
-    # We use ws:// for the internal loopback connection
-    target_url = f"ws://{UPSTREAM_HOST}:{session.port}{session.base_url}/{path}{query}"
-    
-    ws_headers = dict(websocket.headers)
-
-    # 2. Translate Nginx headers: Host, Origin, and Forwarded-For
-    # We make Marimo think the request is coming from its own local interface
-    ws_headers = {
-        "Host": f"{UPSTREAM_HOST}:{session.port}",
-        "Origin": f"http://{UPSTREAM_HOST}:{session.port}",
-        "X-Real-IP": websocket.client.host if websocket.client else UPSTREAM_HOST,
-        "X-Forwarded-For": websocket.client.host if websocket.client else {UPSTREAM_HOST},
-        "X-Forwarded-Proto": "ws",
-        "Cookie": websocket.headers.get("cookie", "")
-    }
-
-    # 3. Extract Subprotocols (Important for Marimo's internal messaging)
-    requested_protocols = websocket.headers.get("sec-websocket-protocol", "").split(",")
-    requested_protocols = [p.strip() for p in requested_protocols if p.strip()]
-
-    try:
-        # 4. Connect to the internal Marimo instance
-        # We disable compression here to ensure no 'Reserved Bit' 1002 errors
-        async with websockets.connect(
-            target_url, 
-            additional_headers=ws_headers, 
-            subprotocols=requested_protocols,
-            compression=None 
-        ) as target_ws:
+        # Include PORT in the URL so mitmproxy can route it
+        response = RedirectResponse(url=f"/edit/{session_id}/")
+        response.set_cookie(
+            key=f"marimo_port_{session.session_id}", 
+            value=str(session.port),
+            path=f"/",
+            max_age=14400,  # 4 hours
+            samesite="lax",
+            secure=True  # Ensure this is True for AKS/HTTPS
             
-            # 5. Accept the browser connection with the negotiated subprotocol
-            await websocket.accept(subprotocol=target_ws.subprotocol)
-
-            # 6. The "Raw Pipe" - Bidirectional data flow
-            async def browser_to_marimo():
-                try:
-                    while True:
-                        # Receive from browser, send to Marimo
-                        msg = await websocket.receive()
-                        if "text" in msg:
-                            await target_ws.send(msg["text"])
-                        elif "bytes" in msg:
-                            await target_ws.send(msg["bytes"])
-                except Exception:
-                    pass # Handle disconnect silently
-
-            async def marimo_to_browser():
-                try:
-                    async for message in target_ws:
-                        # Receive from Marimo, send to browser
-                        if isinstance(message, str):
-                            await websocket.send_text(message)
-                        else:
-                            await websocket.send_bytes(message)
-                except Exception:
-                    pass # Handle disconnect silently
-
-            # Run both tasks concurrently
-            await asyncio.gather(browser_to_marimo(), marimo_to_browser())
-
+        )
+        return response
+        
+        
     except Exception as e:
-        logger.error(f"Marimo WS Tunnel failed: {e}")
-    finally:
-        try:
-            await websocket.close()
-        except:
-            pass
-
+        logger.error(f"Failed to launch: {e}")
+        raise HTTPException(status_code=500, detail="Kernel startup failed")
 
 @app.get("/heartbeat")
 async def heartbeat():
@@ -510,10 +399,11 @@ async def notebook_explorer(request: Request, subpath: str = ""):
     # 1. Setup UNDP Layout & Identity
     undp_layout(request, "Notebook Explorer")
     
-    auth_data = check_auth(url=AUTH_URL, request=request)
+    auth_data = check_auth(url=AUTH_URL.replace('localhost', 'auth-proxy'), request=request)
+   
     # Identify if user has Edit rights (authenticated users)
     can_edit = auth_data.get('is_authenticated', False)
-
+    
     # 2. Resolve the directory to scan
     current_dir = (NOTEBOOKS_DIR / subpath).resolve()
 
@@ -591,7 +481,7 @@ async def notebook_explorer(request: Request, subpath: str = ""):
                                             'Launch',
                                             on_click=lambda s=marimo_slug, r=r: ui.navigate.to(f'{r}apps/{s}')
                                         ).classes('undp-btn primary text-white flex-1 w-1/2 capitalize') \
-                                        .tooltip(f'View as interactive app at {r}apps/{marimo_slug}')
+                                        .tooltip(f'View as interactive app at {r}/apps/{marimo_slug}')
 
                                         ui.button(
                                             'Edit',
@@ -609,32 +499,7 @@ async def notebook_explorer(request: Request, subpath: str = ""):
                                                         
                             
                             
-                            # with ui.row().classes('w-full gap-2 mt-auto'):
-                            #     # Standard slug: 'folder/name'
-                            #     marimo_slug = str(rel_path).replace('.py', '').replace(os.sep, '/').strip('/')
-                                
-                            #     # Calculate relative path jump to root (../../ etc)
-                            #     # This ensures links work regardless of folder depth
-                            #     depth = str(rel_path).count('/')
-                            #     r = "../" * (depth + 1)
-                               
-                            #     # 1. Launch Button (Read-only App mode)
-                            #     ui.button('Launch', on_click=lambda s=marimo_slug, r=r: ui.navigate.to(f'{r}apps/{s}')) \
-                            #         .classes('undp-btn primary text-white flex-1 capitalize max-w-[100px] ') \
-                            #         .tooltip(f'View as interactive app at {r}apps/{marimo_slug}')
-                                
-                            #     # 2. Edit Button (Full interactive Editor)
-                            #     if can_edit:
-                            #         # Routes to the FastAPI 'open' endpoint which spawns the kernel
-                            #         ui.button('Edit', on_click=lambda s=marimo_slug, r=r: ui.navigate.to(f'{r}edit/open/{s}')) \
-                            #             .classes('undp-btn bg-[#006db0] text-white flex-1 capitalize') \
-                            #             .tooltip(f'Open in Editor mode (Spawns kernel) to {r}edit/open/{marimo_slug}')
-                            #     # else:
-                            #     #     # Locked state for unauthenticated users
-                            #     #     ui.button('Edit', icon='lock') \
-                            #     #         .classes('undp-btn bg-gray-100 text-gray-400 flex-1 capitalize') \
-                            #     #         .props('disable') \
-                            #     #         .tooltip('Sign in to access the editor')
+                           
 
 
 
@@ -653,6 +518,117 @@ async def redirect_slash(request: Request, call_next):
     return await call_next(request)
 
 
+@ui.page('/settings')
+async def settings(request: Request):
+    undp_layout(request, "Settings")
+    with ui.column().classes('w-full max-w-7xl mx-auto px-6 lg:px-8'):
+        ui.label('Here come settings')
+    
+
+
+@ui.page('/sessions')
+async def sessions(request: Request):
+    # 1. Identity & Auth Check
+    auth_url_internal = "http://auth-proxy:4180/oauth2"
+    auth = check_auth(url=f"{auth_url_internal}/auth", request=request)
+    
+    if not auth.get('is_authenticated'):
+        return RedirectResponse(url='/explorer/')
+        
+    # 2. Apply your standard header and layout
+    undp_layout(request, "Marimo Manager")
+    
+    # 3. Main Container
+    with ui.column().classes('w-full max-w-7xl mx-auto px-6 lg:px-8 gap-6 pb-12'):
+        
+        # Header Row
+        with ui.row().classes('w-full justify-between items-center p-4 mb-8 bg-gray-50  border border-gray-200 shadow-sm'):
+            ui.label('Active Marimo Sessions').classes('text-xl font-bold text-gray-800')
+            with ui.row().classes('items-center gap-1'):
+                ui.button(icon='refresh', on_click=lambda: refresh_list()) \
+                    .props('flat round').classes('text-xs font-bold tracking-wider')\
+                    .tooltip('Refresh')
+                # Solid 'Delete All' Button
+                ui.button(icon='delete_forever', on_click=lambda: kil_all_sessions()) \
+                    .props(f'flat round color="[#E5243B]"') \
+                    .tooltip('Delete All Sessions')
+
+        # The empty container where the cards will be injected
+        list_container = ui.column().classes('w-full gap-4')
+        
+        async def kil_all_sessions():
+            sids = list(manager._sessions.keys())
+            for sid in sids:
+                await kill_session(sid)
+        
+
+        # 4. Async logic to handle the termination without losing the UI slot
+        async def kill_session(session_id: str):
+            session = manager._sessions.get(session_id)
+            if session:
+                # 1. Clear the cookie FIRST while the UI context is still valid
+                cookie_name = f'marimo_port_{session_id}'
+                # # Using JavaScript to target the "/" path specifically
+                ui.run_javascript(f'document.cookie = "{cookie_name}=; Path=/; Max-Age=-99999999;"')
+                
+                # 2. Kill the Process (Parent + Child)
+                manager.stop_session(session_id=session_id)
+                
+                # 3. Notify the user
+                ui.notify(f"Terminated session {session_id}", type='warning', icon='delete')
+                await asyncio.sleep(0.1)
+                # 4. Refresh the UI LAST
+                refresh_list()
+                
+
+        # 5. UI Rendering logic
+        def refresh_list():
+            list_container.clear()
+            
+            if not manager._sessions:
+                with list_container:
+                    ui.label("No active kernels running.").classes('text-gray-400 italic mt-4')
+                return
+
+            with list_container:
+                for sid, s in manager._sessions.items():
+                    is_alive = s.proc and s.proc.poll() is None
+                    status_color = 'bg-green-500' if is_alive else 'bg-red-500'
+                    nb_rel_path=str(Path(s.notebook_path).relative_to(NOTEBOOKS_DIR))
+                    
+                    # Sleek horizontal card for each session
+                    with ui.card().classes('undp-card w-full p-0 flex flex-row items-center justify-between overflow-hidden bg-white'):
+                        
+                        # Left side: Color indicator + Info
+                        with ui.row().classes('items-center gap-0 w-2/3'):
+                            ui.element('div').classes(f'w-2 h-20 {status_color}')
+                            
+                            with ui.row().classes('items-center gap-4 pl-4 py-2'):
+                                ui.icon('terminal', color='[#E5243B]').classes('text-2xl opacity-80')
+                                
+                                with ui.column().classes('gap-0'):
+                                    ui.label(nb_rel_path).classes('font-bold text-lg text-gray-800')
+                                    
+                                    # Meta info row
+                                    with ui.row().classes('gap-3 items-center mt-1'):
+                                        ui.label(f"ID: {sid}").classes('text-xs text-gray-500 font-mono bg-gray-100 px-2 py-0.5 rounded')
+                                        ui.label(f"Port: {s.port}").classes('text-xs text-[#006db0] font-bold')
+
+                        # Right side: Action Buttons
+                        with ui.row().classes('items-center gap-2 pr-6'):
+                            # Jump to the notebook
+                            ui.button('Join', icon='open_in_new', on_click=lambda sid=sid: ui.navigate.to(f'../edit/open/{str(nb_rel_path).replace(".py", "")}')) \
+                                .props('flat color=primary').classes('font-bold tracking-wider')
+                            
+                            # Kill the specific process
+                            ui.button(icon='delete_outline', on_click=lambda sid=sid: kill_session(session_id=sid)) \
+                                .props('flat round color=red').tooltip('Kill Kernel')
+                                
+
+        # Trigger the first render when the page loads
+        refresh_list()
+    
+
  
 ui.run_with(
     app, 
@@ -661,7 +637,7 @@ ui.run_with(
     mount_path='/explorer'
 )
 marimo_server = mu.get_marimo_runner(src=str(NOTEBOOKS_DIR), internal_path="/apps")
-app.include_router(router)
+
 app.mount("/", marimo_server)
 
 
