@@ -28,7 +28,7 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger("nicegui").setLevel(logging.WARNING)
 
 logger = logging.getLogger()
-# logger.name = 'careatlas'
+
 
 UNDP_RED = "#E5243B"
 AUTH_URL = f"{os.getenv('AUTH_URL')}/auth"
@@ -47,6 +47,8 @@ NOTEBOOKS_DIR = (BASE_DIR / "notebooks").resolve()
 async def lifespan(app: FastAPI):
     # STARTUP: Start the background 'maintenance' task
     # This loop handles the 1800s timeout and the zombie cleanup
+    await manager.startup()
+    
     reaper_task = asyncio.create_task(manager.cleanup_loop(max_idle_seconds=1800))
     
     yield  # The NiceGUI app runs here
@@ -54,14 +56,22 @@ async def lifespan(app: FastAPI):
     # SHUTDOWN: Fast break for Docker
     reaper_task.cancel()
     
+    try:
+        await reaper_task
+    except asyncio.CancelledError:
+        pass
+    
     manager.shutdown_all()
 
 manager = MarimoManager()
 
-
 app = FastAPI(title="UNDP CareAtlas", lifespan=lifespan)
 
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+
+
+# Add it to FastAPI
+app.add_middleware(mu.MarimoStaticMiddleware)
+
 
 def undp_vertical_mark():
     return ui.html("""
@@ -471,7 +481,7 @@ async def notebook_explorer(request: Request, subpath: str = ""):
                             # This ensures links work regardless of folder depth
                             depth = str(rel_path).count('/')
                             r = "../" * (depth + 1)
-                            
+                            next_uri = f'/apps/{marimo_slug}'
                             with ui.row().classes('w-full justify-center mt-auto'):
                                 # This wrapper defines the “middle” area and width budget for buttons
                                 with ui.row().classes('w-full max-w-[360px] gap-2 flex-nowrap'):
@@ -479,44 +489,28 @@ async def notebook_explorer(request: Request, subpath: str = ""):
                                         # 2 buttons, equal widths
                                         ui.button(
                                             'Launch',
-                                            on_click=lambda s=marimo_slug, r=r: ui.navigate.to(f'{r}apps/{s}')
+                                            on_click=lambda s=marimo_slug, r=r: ui.navigate.to(next_uri)
                                         ).classes('undp-btn primary text-white flex-1 w-1/2 capitalize') \
-                                        .tooltip(f'View as interactive app at {r}/apps/{marimo_slug}')
+                                        .tooltip(f'View as interactive app at {next_uri}')
 
                                         ui.button(
                                             'Edit',
-                                            on_click=lambda s=marimo_slug, r=r: ui.navigate.to(f'{r}edit/open/{s}')
+                                            on_click=lambda s=marimo_slug, r=r: ui.navigate.to(f'/edit/open/{s}')
                                         ).classes('undp-btn bg-[#006db0] text-white flex-1 w-1/2 capitalize') \
-                                        .tooltip(f'Open in Editor mode (Spawns kernel) to {r}edit/open/{marimo_slug}')
+                                        .tooltip(f'Open in Editor mode (Spawns kernel) to /edit/open/{marimo_slug}')
 
                                     else:
+                                        
                                         # 1 button, centered in the same max width wrapper
                                         ui.button(
                                             'Launch',
-                                            on_click=lambda s=marimo_slug, r=r: ui.navigate.to(f'{r}apps/{s}')
+                                            on_click=lambda: ui.navigate.to(next_uri)
                                         ).classes('undp-btn primary text-white justify w-[180px] capitalize') \
-                                        .tooltip(f'View as interactive app at {r}apps/{marimo_slug}')
+                                        .tooltip(f'View as interactive app at {next_uri}')
                                                         
                             
                             
                            
-
-
-
-@app.middleware("http")
-async def redirect_slash(request: Request, call_next):
-    path = request.url.path
-
-    # canonicalize /explorer -> /explorer/
-    if path == "/explorer":
-        return RedirectResponse(url="/explorer/", status_code=308)
-
-    # canonicalize / -> /explorer/
-    if path == "/":
-        return RedirectResponse(url="/explorer/", status_code=308)
-
-    return await call_next(request)
-
 
 @ui.page('/settings')
 async def settings(request: Request):
@@ -628,17 +622,13 @@ async def sessions(request: Request):
         # Trigger the first render when the page loads
         refresh_list()
     
+marimo_server = mu.get_marimo_runner(src=str(NOTEBOOKS_DIR), internal_path="/apps")
+app.mount("/apps", marimo_server)
 
- 
 ui.run_with(
     app, 
     storage_secret=os.getenv("NICEGUI_STORAGE_SECRET"),
     title="UNDP CareAtlas",
-    mount_path='/explorer'
 )
-marimo_server = mu.get_marimo_runner(src=str(NOTEBOOKS_DIR), internal_path="/apps")
-
-app.mount("/", marimo_server)
-
 
 

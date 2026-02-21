@@ -103,10 +103,16 @@ class MarimoProcessWrapper:
 class MarimoManager:
     def __init__(self):
         self._sessions: Dict[str, MarimoSession] = {}
-        # Ensure cleanup on script exit
-        atexit.register(self.shutdown_all)
-        self.discover_running_sessions()
-        self.reap_orphans_and_zombies()
+    
+    async def startup(self):
+        """
+        2. Offload the heavy OS scanning to an async wrapper.
+        asyncio.to_thread runs the synchronous psutil loops in a separate 
+        worker thread so they do not block the ASGI server boot.
+        """
+        logger.info("Initializing MarimoManager state...")
+        await asyncio.to_thread(self.reap_orphans_and_zombies)
+        await asyncio.to_thread(self.discover_running_sessions)
 
     def _get_free_port(self) -> int:
         """Standard trick to get an ephemeral port from the OS."""
@@ -141,12 +147,12 @@ class MarimoManager:
         if not nb_path.exists():
             raise FileNotFoundError(f"Notebook not found at {nb_path}")
         if identity:
-            
+            env = os.environ.copy()
             # These variables will be picked up by Git inside the Marimo terminal/notebook
-            os.environ["GIT_AUTHOR_NAME"] = identity["user"]
-            os.environ["GIT_AUTHOR_EMAIL"] = identity["email"]
-            os.environ["GIT_COMMITTER_NAME"] = identity["user"]
-            os.environ["GIT_COMMITTER_EMAIL"] = identity["email"]
+            env["GIT_AUTHOR_NAME"] = identity["user"]
+            env["GIT_AUTHOR_EMAIL"] = identity["email"]
+            env["GIT_COMMITTER_NAME"] = identity["user"]
+            env["GIT_COMMITTER_EMAIL"] = identity["email"]
 
         port = self._get_free_port()
         base_url = f"{base_prefix}/{session_id}"
@@ -157,7 +163,7 @@ class MarimoManager:
             "--host", "0.0.0.0",
             "--port", str(port),
             "--base-url", base_url,
-            #"--proxy", "localhost:8080",
+            "--proxy", "localhost:8080",
             "--headless",
             "--no-token",
             # Automatically terminate the kernel after 2 hours of inactivity
@@ -165,13 +171,14 @@ class MarimoManager:
             
         ]
 
-        logger.info(f"Starting Marimo session '{session_id}' on port {port}...")
+        logger.debug(f"Starting Marimo session '{session_id}' on port {port}...")
         
         proc = subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL, # Keep logs clean, or redirect to file
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
+            env=env
         )
 
         # Polling for readiness
@@ -216,21 +223,46 @@ class MarimoManager:
     #     except Exception as e:
     #         logger.error(f"Error closing session {session_id}: {e}")
     
-    def stop_session(self, session_id: str):
-        session = self._sessions.get(session_id)
-        if session and session.proc:
+    def stop_session(self, session_id: str) -> None:
+        session = self._sessions.pop(session_id, None)
+        if not session or not session.proc:
+            return
+
+        # 1. Safely extract PID whether it's Popen or MarimoProcessWrapper
+        pid = getattr(session.proc, 'pid', None) 
+        if not pid and hasattr(session.proc, '_proc'):
+            pid = session.proc._proc.pid
+
+        if pid:
             try:
-                parent = psutil.Process(session.proc.pid)
-                
-                # Get ALL descendants (the kernels/PID 59)
+                parent = psutil.Process(pid)
+                # Get ALL descendants (the kernels)
                 children = parent.children(recursive=True)
-                for child in children:
-                    child.send_signal(signal.SIGKILL) # Force kill kernels
                 
-                parent.send_signal(signal.SIGKILL) # Force kill parent
-                self._sessions.pop(session_id, None)
+                # 2. Terminate gracefully first (SIGTERM)
+                for child in children:
+                    child.terminate()
+                parent.terminate()
+                
+                # 3. Wait up to 3 seconds for them to clean up and exit
+                _, alive = psutil.wait_procs(children + [parent], timeout=3)
+                
+                # 4. Force kill (SIGKILL) any stubborn survivors
+                for p in alive:
+                    p.kill()
+                    
+            except psutil.NoSuchProcess:
+                pass # Process is already gone
             except Exception as e:
-                print(f"Cleanup error: {e}")
+                logger.error(f"Cleanup error for {session_id}: {e}")
+
+        # 5. THE ZOMBIE REAPER: You MUST call .wait() to release the PID
+        try:
+            if hasattr(session.proc, 'wait'):
+                # This reads the exit code and removes the defunct entry from the OS
+                session.proc.wait(timeout=2)
+        except Exception:
+            pass
 
     def shutdown_all(self) -> None:
         """Stops all managed sessions. Useful for cleanup."""
@@ -246,7 +278,7 @@ class MarimoManager:
         if session := self._sessions.get(session_id):
             session.last_activity = time.time()
 
-    async def cleanup_loop(self, max_idle_seconds: int = 1800):
+    async def cleanup_loop(self, max_idle_seconds: int = 3600*12):
         """
         The 'Reaper' task. Runs periodically to:
         1. Kill sessions that haven't seen traffic.
@@ -267,7 +299,7 @@ class MarimoManager:
                 # No child processes exist at all, perfectly fine
                 pass
 
-            logger.info(f'Active Managed Sessions: {len(self._sessions)}')
+            logger.debug(f'Active Managed Sessions: {len(self._sessions)}')
             
             # --- PHASE 1: SESSION MANAGEMENT ---
             for sid in list(self._sessions.keys()):

@@ -16,6 +16,7 @@ ENV PATH="/uvbin:${PATH}"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     git \
+    tini \
     && rm -rf /var/lib/apt/lists/*
 
 # 4. Copy ONLY the lock/config files first
@@ -34,6 +35,8 @@ RUN uv sync --frozen --no-dev
 # 6. Runtime Configuration
 ENV PYTHONPATH="/server/src"
 ENV PYTHONUNBUFFERED=1
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
 
 # Use 'uv run' to ensure the 3.11 environment is used correctly
 CMD ["uv", "run", "uvicorn", "careatlas.app.server:app", "--host", "0.0.0.0", "--port", "80"]

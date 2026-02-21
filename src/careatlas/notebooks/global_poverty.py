@@ -4,15 +4,23 @@
 
 import marimo
 
-__generated_with = "0.19.11"
+__generated_with = "0.20.1"
 app = marimo.App(width="medium", auto_download=["html"])
 
 
 @app.cell
-def _():
+def menu():
+    import marimo as mo
+    import os
+    from careatlas.app.repo import sidebar_content
     import marimo as mo
 
-    mo.md("# Hello from marimo 👋")
+    mo.sidebar(sidebar_content)
+    #render_modal()
+
+
+
+    #mine = {(k,v) for k, v in os.environ.items() if k.startswith('GIT')}
     return (mo,)
 
 
