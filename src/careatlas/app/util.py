@@ -2,7 +2,6 @@ import subprocess
 import socket
 import time
 import logging
-import atexit
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from typing import Dict, Optional
@@ -62,7 +61,6 @@ class MarimoProcessWrapper:
         try:
             # Get all descendants (recursive=True handles nested forks)
             descendants = self._proc.children(recursive=True)
-            print('DESCDDDDDD')
             
             for child in descendants:
                 child.terminate()

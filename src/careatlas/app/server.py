@@ -16,6 +16,7 @@ import asyncio
 import httpx
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
+
 # This syncs the duality. 
 # It tells the app to use the 'X-Forwarded' headers sent by your proxy.
 
@@ -70,7 +71,7 @@ app = FastAPI(title="UNDP CareAtlas", lifespan=lifespan)
 
 
 # Add it to FastAPI
-app.add_middleware(mu.MarimoStaticMiddleware)
+#app.add_middleware(mu.MarimoStaticMiddleware)
 
 
 def undp_vertical_mark():
@@ -482,6 +483,7 @@ async def notebook_explorer(request: Request, subpath: str = ""):
                             depth = str(rel_path).count('/')
                             r = "../" * (depth + 1)
                             next_uri = f'/apps/{marimo_slug}'
+                            
                             with ui.row().classes('w-full justify-center mt-auto'):
                                 # This wrapper defines the “middle” area and width budget for buttons
                                 with ui.row().classes('w-full max-w-[360px] gap-2 flex-nowrap'):
@@ -621,8 +623,12 @@ async def sessions(request: Request):
 
         # Trigger the first render when the page loads
         refresh_list()
-    
-marimo_server = mu.get_marimo_runner(src=str(NOTEBOOKS_DIR), internal_path="/apps")
+
+
+
+
+marimo_server = mu.get_marimo_runner(src=str(NOTEBOOKS_DIR), mount_point="/apps")
+
 app.mount("/apps", marimo_server)
 
 ui.run_with(
