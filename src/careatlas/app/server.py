@@ -471,6 +471,7 @@ async def notebook_explorer(request: Request, subpath: str = ""):
                             with ui.row().classes('items-center gap-2 mb-2'):
                                 ui.icon('dashboard', color='[#006db0]').classes('text-2xl')
                                 ui.label('Notebook').classes('text-[#006db0] text-sm font-bold tracking-widest uppercase')
+                            ui.label(item_label).classes('text-xl font-bold text-gray-700 capitalize')
                             
                             # Fetch metadata (description) from the file
                             descr = mu.get_global_metadata(str(item.absolute()))

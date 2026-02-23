@@ -5,6 +5,9 @@ import sys
 
 # --- Internal Logic ---
 
+DRY_RUN=False
+
+
 def get_repo():
     try:
         return git.Repo(".", search_parent_directories=True)
@@ -30,8 +33,9 @@ def commit(message, nb_file):
     if not message.strip():
         return mo.status.toast("Commit message is required.", kind='warning')
     try:
-        #repo.index.add([nb_file])
-        #new_commit = repo.index.commit(message)
+        if not DRY_RUN:
+            repo.index.add([nb_file])
+            new_commit = repo.index.commit(message)
         return mo.status.toast(f"Local commit was successful", kind='success')
         
     except Exception as e:
@@ -43,7 +47,8 @@ def push(_):
         return mo.status.toast("No git repository found.", kind='danger')
     try:
         origin = repo.remote(name='origin')
-        #origin.push()
+        if not DRY_RUN:
+            origin.push()
         return mo.status.toast("Successfully pushed to origin.", kind='success')
     except Exception as e:
         return mo.status.toast(f"Push failed: {str(e)}", kind='danger')
@@ -60,7 +65,8 @@ def revert(_, nb_file):
             return mo.status.toast(f"Cannot revert: {nb_file} has no commits yet.", kind='warning')
 
         # If it is tracked, proceed with the revert
-        #repo.git.checkout('HEAD', '--', nb_file)
+        if not DRY_RUN:
+            repo.git.checkout('HEAD', '--', nb_file)
         return mo.status.toast(f"Reverted {nb_file} to last commit.", kind='success')
         
     except Exception as e:
