@@ -60,7 +60,7 @@ def revert(_, nb_file):
             return mo.status.toast(f"Cannot revert: {nb_file} has no commits yet.", kind='warning')
 
         # If it is tracked, proceed with the revert
-        repo.git.checkout('HEAD', '--', nb_file)
+        #repo.git.checkout('HEAD', '--', nb_file)
         return mo.status.toast(f"Reverted {nb_file} to last commit.", kind='success')
         
     except Exception as e:

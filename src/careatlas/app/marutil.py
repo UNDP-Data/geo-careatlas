@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 
+
 def get_global_metadata(target):
     """
     Returns only the global (module-level) docstring and the source code.
@@ -61,33 +62,6 @@ def get_marimo_runner_old(src: str, internal_path: str = "") -> ASGIApp:
 
 
 
-def get_marimo_runner(src: str, internal_path: str = "") -> ASGIApp:
-    # 1. Build the Marimo app normally
-    marimo_server = (
-        marimo.create_asgi_app(
-            quiet=False, 
-            asset_url=internal_path # HTML will request /apps/assets/...
-        )
-        .with_dynamic_directory(path=internal_path, directory=src)
-        .build()
-    )
-
-    # 2. Locate Marimo's physical static assets folder
-    marimo_static_dir = os.path.join(os.path.dirname(marimo.__file__), "_static", "assets")
-
-    # 3. Extract Marimo's base Starlette app from inside the middleware
-    base_starlette_app = marimo_server.app 
-
-    # 4. Monkey patch the router! 
-    # Insert at index 0 so it intercepts the asset requests before the catch-all routes
-    base_starlette_app.routes.insert(
-        0, 
-        Mount("/assets", app=StaticFiles(directory=marimo_static_dir), name="patched_assets")
-    )
-
-    return marimo_server
-
-
 class MarimoStaticMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
@@ -105,3 +79,42 @@ class MarimoStaticMiddleware(BaseHTTPMiddleware):
                 return FileResponse(file_path)
                 
         return await call_next(request)
+
+
+
+
+def get_marimo_runner(src: str, mount_point: str = None) -> ASGIApp:
+    version = marimo.__version__
+    # 1. Use the official, native Marimo builder
+    marimo_server = (
+        marimo.create_asgi_app(
+            quiet=False,
+            include_code=True,
+            skew_protection=True,
+            #asset_url=f"https://cdn.jsdelivr.net/npm/@marimo-team/frontend@{version}/dist"
+        )
+        .with_dynamic_directory(
+            path=mount_point,  # Tell Marimo to expect "/apps"
+            directory=src
+        )
+        .build()
+    )
+
+    # 2. The simple ASGI wrapper to fix FastAPI's path stripping
+    async def prefix_restoring_app(scope, receive, send):
+        if scope["type"] in ["http", "websocket"]:
+            # FastAPI strips "/apps" from scope["path"] and puts it in scope["root_path"]
+            # We put it back so Marimo's dynamic directory matcher sees the full URL
+            path = scope.get("path", "")
+            
+            # Only add the prefix if it's not already there (safety check)
+            if not path.startswith(mount_point):
+                scope["path"] = f"{mount_point}{path}"
+            
+            # Clear root_path so Marimo relies entirely on the full path
+            scope["root_path"] = ""
+            
+        await marimo_server(scope, receive, send)
+
+    return prefix_restoring_app
+

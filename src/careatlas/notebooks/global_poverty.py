@@ -12,15 +12,9 @@ app = marimo.App(width="medium", auto_download=["html"])
 def menu():
     import marimo as mo
     import os
-    from careatlas.app.repo import sidebar_content
-    import marimo as mo
-
-    mo.sidebar(sidebar_content)
-    #render_modal()
-
-
-
-    #mine = {(k,v) for k, v in os.environ.items() if k.startswith('GIT')}
+    from careatlas.app.repo import create_sidebar
+    sb = create_sidebar(mmo=mo)
+    sb
     return (mo,)
 
 
