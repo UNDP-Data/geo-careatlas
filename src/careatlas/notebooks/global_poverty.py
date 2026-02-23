@@ -11,15 +11,21 @@ app = marimo.App(width="medium", auto_download=["html"])
 @app.cell
 def menu():
     import marimo as mo
-    from careatlas.app.repo import show_sidebar
-    show_sidebar(mmod=mo)
+    import os
+    from careatlas.app.repo import sidebar_content
+    import marimo as mo
 
+    mo.sidebar(sidebar_content)
+    #render_modal()
+
+
+
+    #mine = {(k,v) for k, v in os.environ.items() if k.startswith('GIT')}
     return (mo,)
 
 
 @app.cell
 def _(mo):
-
     metric = mo.ui.dropdown(
         options=["Population", "Facilities", "Coverage"],
         value="Population",
@@ -27,7 +33,6 @@ def _(mo):
     )
     threshold = mo.ui.slider(start=0, stop=100, value=30, label="Threshold")
     mo.vstack([metric, threshold])
-
     return
 
 

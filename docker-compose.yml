@@ -5,7 +5,8 @@ services:
     volumes:
       - ./src:/server/src
     # API now runs on 8001
-    command: uv run uvicorn careatlas.app.server:app --host 0.0.0.0 --port 8001 --reload --reload-dir /server/src/careatlas/app
+    command: uv run uvicorn careatlas.app.server:app --host 0.0.0.0 --port 8001
+    #command: uv run uvicorn careatlas.app.server:app --host 0.0.0.0 --port 8001 --reload --reload-dir /server/src/careatlas/app
     environment:
       - NICEGUI_STORAGE_SECRET=${OAUTH_COOKIE_KEY}
       - AUTH_URL=http://localhost:4180/oauth2
