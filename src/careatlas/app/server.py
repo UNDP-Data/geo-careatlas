@@ -575,10 +575,9 @@ async def sessions(request: Request):
                 
                 # 3. Notify the user
                 ui.notify(f"Terminated session {session_id}", type='warning', icon='delete')
-                
+                await asyncio.sleep(0.1)
                 # 4. Refresh the UI LAST
                 if refresh:
-                    await asyncio.sleep(0.1)
                     refresh_list()
                 
 

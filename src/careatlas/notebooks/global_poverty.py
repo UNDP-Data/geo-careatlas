@@ -28,5 +28,12 @@ def _(mo):
     return
 
 
+@app.cell
+def _():
+    import lonboard
+
+    return
+
+
 if __name__ == "__main__":
     app.run()

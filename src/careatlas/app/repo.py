@@ -7,7 +7,7 @@ import shutil
 
 # 1. Configuration
 email = os.environ.get("GIT_AUTHOR_EMAIL", None)
-
+GITHUB_TOKEN = os.environ.get('GITHUB_PAT_TOKEN', None)
 DRY_RUN=False
 # Extract version once at the module level or inside the function
 MARIMO_VERSION = getattr(mo, "__version__", "")
@@ -76,7 +76,50 @@ def revert(_, nb_file):
     except Exception as e:
         return mo.status.toast(f"Revert failed: {str(e)}", kind='danger')
 
+def stage_commit_push(src):
+    new_path = os.path.abspath(src)
+    name = os.path.basename(new_path)
+    
+    # 1. Check for the token immediately
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token:
+        return mo.status.toast("Error: GITHUB_TOKEN environment variable is missing", kind='danger')
 
+    if DRY_RUN:
+        return mo.status.toast(f"Dry run: Created {name}", kind='info')
+
+    repo = get_repo()
+    if not repo:
+        return mo.status.toast("Git repository not found", kind='danger')
+    
+    try:
+        # 2. Path Logic (Relative for AKS/Docker)
+        rel_p = os.path.relpath(new_path, repo.working_tree_dir)
+        
+        # 3. Stage & Commit
+        repo.index.add([rel_p])
+        repo.index.commit(f"New notebook: {name}")
+        
+        # 4. Authenticated Push
+        origin = repo.remote(name='origin')
+        remote_url = origin.url
+        
+        # Fine-grained tokens work best when injected into the HTTPS URL
+        if "https://" in remote_url and "@" not in remote_url:
+            # We use the token directly as the 'user' in the URL string
+            auth_url = remote_url.replace("https://", f"https://{token}@")
+            origin.set_url(auth_url)
+        
+        # Execute push to remote
+        origin.push()
+        
+        # Safety: Reset URL to original to avoid logging the PAT in git config
+        origin.set_url(remote_url)
+        
+        return mo.status.toast(f"Committed & Pushed: {name}", kind="success")
+        
+    except Exception as e:
+        return mo.status.toast(f"Git failed: {str(e)}", kind="danger")
 
 
 # 1. The Input Field (lives inside the popup)
@@ -120,7 +163,8 @@ def duplicate(_):
     try:
         if not DRY_RUN:
             shutil.copy2(current_path, new_path)
-            commit(message=f"Created new notebbok {new_path}", nb_file=new_path)
+            #commit(message=f"Created new notebbok {new_path}", nb_file=new_path)
+            stage_commit_push(src=new_path)
             return mo.status.toast(f"Duplicated & Staged: {os.path.basename(new_path)}", kind="success")
     except Exception as e:
         return mo.status.toast(f"Duplicate failed: {e}", kind="danger")

@@ -7,11 +7,14 @@ services:
     # API now runs on 8001
     command: uv run uvicorn careatlas.app.server:app --host 0.0.0.0 --port 8001
     #command: uv run uvicorn careatlas.app.server:app --host 0.0.0.0 --port 8001 --reload --reload-dir /server/src/careatlas/app
+    env_file:
+      - .env
     environment:
       - NICEGUI_STORAGE_SECRET=${OAUTH_COOKIE_KEY}
       - AUTH_URL=http://localhost:4180/oauth2
       - FORWARDED_ALLOW_IPS=*
       - ENV=dev
+      - GITHUB_PAT_TOKEN=${GITHUB_PAT_TOKEN}
 
   mitmproxy:
     image: mitmproxy/mitmproxy:latest
