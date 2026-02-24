@@ -164,7 +164,7 @@ def duplicate(_):
             shutil.copy2(current_path, new_path)
             #commit(message=f"Created new notebbok {new_path}", nb_file=new_path)
             stage_commit_push(src=new_path)
-            return mo.status.toast(f"Duplicated & Staged: {os.path.basename(new_path)}", kind="success")
+            #return mo.status.toast(f"Duplicated & Staged: {os.path.basename(new_path)}", kind="success")
     except Exception as e:
         return mo.status.toast(f"Duplicate failed: {e}", kind="danger")
 
