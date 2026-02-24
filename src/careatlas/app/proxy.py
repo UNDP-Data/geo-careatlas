@@ -1,5 +1,10 @@
 from mitmproxy import http
 import re
+# Inside proxy.py
+import logging
+
+# Set level to WARNING to ignore the usual request/response noise
+logging.getLogger('mitmproxy').setLevel(logging.WARNING)
 
 def request(flow: http.HTTPFlow) -> None:
     # Match the 8-character hex SID (your uuid.uuid4().hex[:8])

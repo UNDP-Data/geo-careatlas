@@ -306,6 +306,7 @@ def page_get_involved(request: Request):
 @app.get("/edit/open/{notebook_name:path}") # Added :path for subfolders
 def edit(notebook_name: str, request: Request):
    
+    print(f'HASHHHHHH {notebook_name}')
     
     # 0. This is your single source of truth from Docker/AKS
     auth_url = AUTH_URL.rstrip('/')
@@ -327,12 +328,12 @@ def edit(notebook_name: str, request: Request):
     
     if not notebook_path.exists() or base_dir not in notebook_path.parents:
         raise HTTPException(status_code=404, detail="Notebook not found or access denied")
-
+    print(f'HASHHHHHH {notebook_path}')
     # 3. Idempotency: Join existing session if available
     existing = next((s for s in manager._sessions.values() if s.notebook_path == str(notebook_path)), None)
     # 1. Join existing or Start new session
     existing = next((s for s in manager._sessions.values() if s.notebook_path == str(notebook_path)), None)
-    
+    print(f'HEXISTING {existing}')
     if existing:
         # Include PORT in the URL so mitmproxy can route it
         response = RedirectResponse(url=f"/edit/{existing.session_id}/", headers=request.headers)
@@ -556,11 +557,12 @@ async def sessions(request: Request):
         async def kil_all_sessions():
             sids = list(manager._sessions.keys())
             for sid in sids:
-                await kill_session(sid)
+                await kill_session(sid, refresh=False)
+            refresh_list()
         
 
         # 4. Async logic to handle the termination without losing the UI slot
-        async def kill_session(session_id: str):
+        async def kill_session(session_id: str, refresh=True):
             session = manager._sessions.get(session_id)
             if session:
                 # 1. Clear the cookie FIRST while the UI context is still valid
@@ -573,9 +575,11 @@ async def sessions(request: Request):
                 
                 # 3. Notify the user
                 ui.notify(f"Terminated session {session_id}", type='warning', icon='delete')
-                await asyncio.sleep(0.1)
+                
                 # 4. Refresh the UI LAST
-                refresh_list()
+                if refresh:
+                    await asyncio.sleep(0.1)
+                    refresh_list()
                 
 
         # 5. UI Rendering logic
@@ -611,14 +615,18 @@ async def sessions(request: Request):
                                         ui.label(f"ID: {sid}").classes('text-xs text-gray-500 font-mono bg-gray-100 px-2 py-0.5 rounded')
                                         ui.label(f"Port: {s.port}").classes('text-xs text-[#006db0] font-bold')
 
-                        # Right side: Action Buttons
+                        # --- Right side: Action Buttons ---
                         with ui.row().classes('items-center gap-2 pr-6'):
-                            # Jump to the notebook
-                            ui.button('Join', icon='open_in_new', on_click=lambda sid=sid: ui.navigate.to(f'../edit/open/{str(nb_rel_path).replace(".py", "")}')) \
-                                .props('flat color=primary').classes('font-bold tracking-wider')
                             
-                            # Kill the specific process
-                            ui.button(icon='delete_outline', on_click=lambda sid=sid: kill_session(session_id=sid)) \
+                            # FIX: Use sid=sid and path=nb_rel_path as default arguments to freeze the values
+                            ui.button('Join', icon='open_in_new', 
+                                    on_click=lambda s=sid, p=nb_rel_path: ui.navigate.to(f'../edit/open/{str(p).replace(".py", "")}')) \
+                                .props('flat color=primary').classes('font-bold tracking-wider') \
+                                .tooltip(f'Join session {sid}')
+                            
+                            # FIX: Use sid=sid as default argument
+                            ui.button(icon='delete_outline', 
+                                    on_click=lambda s=sid: kill_session(session_id=s)) \
                                 .props('flat round color=red').tooltip('Kill Kernel')
                                 
 

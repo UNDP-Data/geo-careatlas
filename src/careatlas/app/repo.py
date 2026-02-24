@@ -2,11 +2,15 @@ import git
 import marimo as mo
 import os
 import sys
+import shutil
 
-# --- Internal Logic ---
 
-DRY_RUN=False
+# 1. Configuration
+email = os.environ.get("GIT_AUTHOR_EMAIL", None)
 
+DRY_RUN=True
+# Extract version once at the module level or inside the function
+MARIMO_VERSION = getattr(mo, "__version__", "")
 
 def get_repo():
     try:
@@ -73,14 +77,42 @@ def revert(_, nb_file):
         return mo.status.toast(f"Revert failed: {str(e)}", kind='danger')
 
 
-# 1. Configuration
-email = os.environ.get("GIT_AUTHOR_EMAIL", None)
+
 
 # 1. The Input Field (lives inside the popup)
 commit_input = mo.ui.text_area(
     placeholder="e.g., Update poverty threshold logic...",
     full_width=True
 )
+
+# 1. Input field for the new filename
+create_input = mo.ui.text(
+    placeholder="new_notebook_name",
+    label="Filename",
+    full_width=True
+)
+
+
+
+
+def duplicate(_):
+    repo = get_repo()
+    if not repo:
+        return mo.status.toast("No git repository found.", kind='danger')
+    
+    current_path = os.path.abspath(sys.argv[0])
+    base, ext = os.path.splitext(current_path)
+    new_path = f"{base}_copy{ext}"
+    
+    try:
+        shutil.copy2(current_path, new_path)
+        
+        if not DRY_RUN:
+            commit(message=f"Created new notebbok {nb_file}")
+            
+        return mo.status.toast(f"Duplicated & Staged: {os.path.basename(new_path)}", kind="success")
+    except Exception as e:
+        return mo.status.toast(f"Duplicate failed: {e}", kind="danger")
 
 # 2. Handlers for buttons
 def handle_commit(_):
@@ -96,7 +128,7 @@ def handle_commit(_):
     commit(message, nb_file=nb_file)
     mo.status.toast(f"Commit '{message}' triggered from {nb_file}", kind="success")
 
-btn_confirm = mo.ui.button(
+btn_commit = mo.ui.button(
     label=f"{mo.icon('lucide:check', size=20)} Commit",
     on_click=handle_commit,
     full_width=True,
@@ -109,91 +141,148 @@ btn_revert = mo.ui.button(
     kind="danger"
 )
 
-btn_run = mo.ui.button(
+btn_push = mo.ui.button(
     label=f"{mo.icon('lucide:git-merge', size=24)}",
     on_click=push, 
     tooltip="Push commits to origin",
     full_width=False
 )
 
+def handle_create_notebook(_):
+    repo = get_repo()
+    name = create_input.value.strip()
+    
+    if not name:
+        return mo.status.toast("Please enter a filename", kind="warning")
+    
+    # Ensure it ends with .py
+    if not name.endswith(".py"):
+        name += ".py"
+        
+    current_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    new_path = os.path.join(current_dir, name)
+    
+    if os.path.exists(new_path):
+        return mo.status.toast(f"Error: {name} already exists!", kind="danger")
+
+    # Interpolated Template
+    template = (
+        'import marimo\n\n'
+        f'__generated_with = "{MARIMO_VERSION}"\n'
+        'app = marimo.App(width="medium", auto_download=["html"])\n\n\n'
+        '@app.cell\n'
+        'def menu():\n'
+        '    import marimo as mo\n'
+        '    from careatlas.app.repo import create_sidebar\n'
+        '    create_sidebar(marimo_module=mo)\n'
+        '    return (mo,)\n'
+    )
+
+    try:
+    
+        # Git staging
+        if not DRY_RUN:
+            with open(new_path, "w") as f:
+                f.write(template)
+            commit(message=f"Created {new_path}", nb_file=new_path)
+            
+        return mo.status.toast(f"Created & Staged: {name} (v{MARIMO_VERSION})", kind="success")
+    except Exception as e:
+        return mo.status.toast(f"Error: {str(e)}", kind="danger")
+
+btn_create_confirm = mo.ui.button(
+    label=f"{mo.icon('fluent:notebook-add-20-regular', size=24)} Create",
+    on_click=handle_create_notebook,
+    full_width=False,
+    tooltip="Create new notebook",
+)
+
+
+# btn_duplicate = mo.ui.button(
+#     label=f"{mo.icon('lucide:copy', size=24)}",
+#     on_click=handle_duplicate,
+#     tooltip="Duplicate current notebook",
+#     full_width=False
+# )
+
 sidebar_content = mo.Html(
     f"""
     <style>
-        .git-panel {{ display: flex; flex-direction: column; gap: 12px; padding: 4px; }}
+        .git-panel {{ display: flex; flex-direction: column; gap: 8px; padding: 4px; }}
         
-        /* Native HTML Expandable Styling */
-        details.commit-expander {{ width: 100%; }}
-        details.commit-expander > summary {{ 
+        details.tool-expander {{ 
+            width: 100%; 
+            border-bottom: 3px solid var(--gray-3, #f3f4f6); 
+            padding-bottom: 4px; 
+        }}
+        
+        details.tool-expander > summary {{ 
             list-style: none; cursor: pointer; 
             display: flex; justify-content: center;
-            padding: 6px; border-radius: 6px;
+            padding: 10px; border-radius: 6px;
             transition: background 0.2s ease;
         }}
         
-        /* Hide the default HTML triangle arrow */
-        details.commit-expander > summary::-webkit-details-marker {{ display: none; }}
-        
-        /* Hover effect for the icon */
-        details.commit-expander > summary:hover {{ background: var(--gray-3, #f3f4f6); }}
+        details.tool-expander > summary::-webkit-details-marker {{ display: none; }}
+        details.tool-expander > summary:hover {{ background: var(--gray-2, #f9fafb); }}
 
-        .commit-box {{
-            display: flex; flex-direction: column; gap: 8px;
-            padding-top: 12px;
-            border-top: 1px solid var(--gray-3, #f3f4f6);
-            margin-top: 8px;
+        .expander-content {{
+            display: flex; flex-direction: column; gap: 10px;
+            padding: 12px 6px;
         }}
 
-        /* Container to place commit and revert buttons side by side */
-        .action-buttons {{
-            display: flex;
-            gap: 8px;
-            width: 100%;
-        }}
-        
-        /* Ensure both buttons take up equal space */
-        .action-buttons > * {{
-            flex: 1;
-        }}
-
-        .push-container {{
-            display: flex;
-            justify-content: center;
-            width: 100%;
+        .tools-container {{
+            display: flex; justify-content: center;
+            width: 100%; padding-top: 12px;
         }}
     </style>
 
     <div class="git-panel">
         
-        <details class="commit-expander" id="commit-expander">
-            <summary title="Toggle Commit Input">
+        <details class="tool-expander" id="create-expander">
+            <summary title="Create new notebook in current directory">
+                {mo.icon('lucide:file-plus', size=24)}
+            </summary>
+            <div class="expander-content">
+                {create_input}
+                {btn_create_confirm}
+            </div>
+        </details>
+
+        <details class="tool-expander" id="commit-expander">
+            <summary title="Commit Changes">
                 {mo.icon('lucide:folder-git-2', size=24)}
             </summary>
-            
-            <div class="commit-box" id="commit-box-content">
+            <div class="expander-content">
                 {commit_input}
-                <div class="action-buttons">
-                    {btn_confirm}
+                <div style="display: flex; gap: 8px;">
+                    {btn_commit}
                     {btn_revert}
                 </div>
             </div>
         </details>
         
-        <div class="push-container">
-            {btn_run}
+        <div class="tools-container">
+            {btn_push}
         </div>
         
     </div>
     
     <script>
-        document.getElementById('commit-box-content').addEventListener('click', (e) => {{
-            if(e.target.closest('marimo-ui-element')) {{
-                setTimeout(() => document.getElementById('commit-expander').removeAttribute('open'), 300);
-            }}
+        // Closes the expander after an action is taken
+        document.querySelectorAll('.expander-content').forEach(panel => {{
+            panel.addEventListener('click', (e) => {{
+                if(e.target.closest('marimo-ui-element')) {{
+                    setTimeout(() => {{
+                        panel.parentElement.removeAttribute('open');
+                    }}, 300);
+                }}
+            }});
         }});
     </script>
     """
 )
 
-def create_sidebar(mmo=None):
+def create_sidebar(marimo_module=None):
     if email:
-        return mmo.sidebar(sidebar_content)
+        return marimo_module.sidebar(sidebar_content)
