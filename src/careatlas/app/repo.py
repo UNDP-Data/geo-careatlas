@@ -8,7 +8,7 @@ import shutil
 # 1. Configuration
 email = os.environ.get("GIT_AUTHOR_EMAIL", None)
 
-DRY_RUN=True
+DRY_RUN=False
 # Extract version once at the module level or inside the function
 MARIMO_VERSION = getattr(mo, "__version__", "")
 
@@ -40,7 +40,7 @@ def commit(message, nb_file):
         if not DRY_RUN:
             repo.index.add([nb_file])
             new_commit = repo.index.commit(message)
-        return mo.status.toast(f"Local commit was successful", kind='success')
+            return mo.status.toast(f"Local commit was successful", kind='success')
         
     except Exception as e:
         return mo.status.toast(f"Commit failed: {str(e)}", kind='danger')
@@ -53,7 +53,7 @@ def push(_):
         origin = repo.remote(name='origin')
         if not DRY_RUN:
             origin.push()
-        return mo.status.toast("Successfully pushed to origin.", kind='success')
+            return mo.status.toast("Successfully pushed to origin.", kind='success')
     except Exception as e:
         return mo.status.toast(f"Push failed: {str(e)}", kind='danger')
 
@@ -71,7 +71,7 @@ def revert(_, nb_file):
         # If it is tracked, proceed with the revert
         if not DRY_RUN:
             repo.git.checkout('HEAD', '--', nb_file)
-        return mo.status.toast(f"Reverted {nb_file} to last commit.", kind='success')
+            return mo.status.toast(f"Reverted {nb_file} to last commit.", kind='success')
         
     except Exception as e:
         return mo.status.toast(f"Revert failed: {str(e)}", kind='danger')
@@ -92,25 +92,36 @@ create_input = mo.ui.text(
     full_width=True
 )
 
-
+duplicate_input = mo.ui.text(
+    placeholder="new_notebook_name",
+    label="Filename",
+    full_width=True
+)
 
 
 def duplicate(_):
-    repo = get_repo()
-    if not repo:
-        return mo.status.toast("No git repository found.", kind='danger')
+    
+    name = duplicate_input.value.strip()
+    if not name:
+        return mo.status.toast("Please enter a filename", kind="warning")
+    
+    # Ensure it ends with .py
+    if not name.endswith(".py"):
+        name += ".py"
+        
+    current_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    new_path = os.path.join(current_dir, name)
+    
+    if os.path.exists(new_path):
+        return mo.status.toast(f"Error: {name} already exists!", kind="danger")
     
     current_path = os.path.abspath(sys.argv[0])
-    base, ext = os.path.splitext(current_path)
-    new_path = f"{base}_copy{ext}"
     
     try:
-        shutil.copy2(current_path, new_path)
-        
         if not DRY_RUN:
-            commit(message=f"Created new notebbok {nb_file}")
-            
-        return mo.status.toast(f"Duplicated & Staged: {os.path.basename(new_path)}", kind="success")
+            shutil.copy2(current_path, new_path)
+            commit(message=f"Created new notebbok {new_path}", nb_file=new_path)
+            return mo.status.toast(f"Duplicated & Staged: {os.path.basename(new_path)}", kind="success")
     except Exception as e:
         return mo.status.toast(f"Duplicate failed: {e}", kind="danger")
 
@@ -124,9 +135,9 @@ def handle_commit(_):
         return mo.status.toast("No changes to commit.", kind="neutral")
     if not message.strip():
         return mo.status.toast("Please enter a commit message!", kind='danger')
-        
-    commit(message, nb_file=nb_file)
-    mo.status.toast(f"Commit '{message}' triggered from {nb_file}", kind="success")
+    if not DRY_RUN:  
+        commit(message, nb_file=nb_file)
+        mo.status.toast(f"Commit '{message}' triggered from {nb_file}", kind="success")
 
 btn_commit = mo.ui.button(
     label=f"{mo.icon('lucide:check', size=20)} Commit",
@@ -149,9 +160,7 @@ btn_push = mo.ui.button(
 )
 
 def handle_create_notebook(_):
-    repo = get_repo()
     name = create_input.value.strip()
-    
     if not name:
         return mo.status.toast("Please enter a filename", kind="warning")
     
@@ -198,12 +207,12 @@ btn_create_confirm = mo.ui.button(
 )
 
 
-# btn_duplicate = mo.ui.button(
-#     label=f"{mo.icon('lucide:copy', size=24)}",
-#     on_click=handle_duplicate,
-#     tooltip="Duplicate current notebook",
-#     full_width=False
-# )
+btn_duplicate = mo.ui.button(
+    label=f"{mo.icon('lucide:copy', size=24)} Duplicate",
+    on_click=duplicate,
+    tooltip="Duplicate current notebook",
+    full_width=False
+)
 
 sidebar_content = mo.Html(
     f"""
@@ -246,6 +255,16 @@ sidebar_content = mo.Html(
             <div class="expander-content">
                 {create_input}
                 {btn_create_confirm}
+            </div>
+        </details>
+        
+        <details class="tool-expander" id="create-expander">
+            <summary title="Duplicate current notebook in current directory">
+                {mo.icon('lucide:copy-plus', size=24)}
+            </summary>
+            <div class="expander-content">
+                {duplicate_input}
+                {btn_duplicate}
             </div>
         </details>
 
