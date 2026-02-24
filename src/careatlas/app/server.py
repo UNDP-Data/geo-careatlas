@@ -328,12 +328,10 @@ def edit(notebook_name: str, request: Request):
     
     if not notebook_path.exists() or base_dir not in notebook_path.parents:
         raise HTTPException(status_code=404, detail="Notebook not found or access denied")
-    print(f'HASHHHHHH {notebook_path}')
     # 3. Idempotency: Join existing session if available
     existing = next((s for s in manager._sessions.values() if s.notebook_path == str(notebook_path)), None)
     # 1. Join existing or Start new session
     existing = next((s for s in manager._sessions.values() if s.notebook_path == str(notebook_path)), None)
-    print(f'HEXISTING {existing}')
     if existing:
         # Include PORT in the URL so mitmproxy can route it
         response = RedirectResponse(url=f"/edit/{existing.session_id}/", headers=request.headers)

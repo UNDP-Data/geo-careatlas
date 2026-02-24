@@ -24,7 +24,7 @@ services:
     command: >
       mitmdump --mode reverse:http://api:8001/
       -s /home/mitmproxy/proxy.py
-      --set keep_host_header=false
+      --set keep_host_header=false -q
     ports:
       - "8080:8080"
     depends_on:

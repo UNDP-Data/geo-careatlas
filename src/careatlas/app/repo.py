@@ -7,7 +7,7 @@ import shutil
 
 # 1. Configuration
 email = os.environ.get("GIT_AUTHOR_EMAIL", None)
-GITHUB_TOKEN = os.environ.get('GITHUB_PAT_TOKEN', None)
+
 DRY_RUN=False
 # Extract version once at the module level or inside the function
 MARIMO_VERSION = getattr(mo, "__version__", "")
@@ -76,50 +76,48 @@ def revert(_, nb_file):
     except Exception as e:
         return mo.status.toast(f"Revert failed: {str(e)}", kind='danger')
 
-def stage_commit_push(src):
-    new_path = os.path.abspath(src)
-    name = os.path.basename(new_path)
+def stage_commit_push(src:str=None, push:bool=True):
+    # Ensure we have the full absolute path inside the container
+    abs_path = os.path.abspath(src)
+    name = os.path.basename(abs_path)
     
-    # 1. Check for the token immediately
-    token = os.environ.get("GITHUB_TOKEN")
-    if not token:
-        return mo.status.toast("Error: GITHUB_TOKEN environment variable is missing", kind='danger')
-
-    if DRY_RUN:
-        return mo.status.toast(f"Dry run: Created {name}", kind='info')
-
+    token = os.environ.get('GITHUB_PAT_TOKEN')
     repo = get_repo()
-    if not repo:
-        return mo.status.toast("Git repository not found", kind='danger')
     
+    if not repo:
+        return mo.status.toast("Repo not found", kind="danger")
+
     try:
-        # 2. Path Logic (Relative for AKS/Docker)
-        rel_p = os.path.relpath(new_path, repo.working_tree_dir)
+        # 1. Setup Identity (Required for AKS/Docker)
+        with repo.config_writer() as cw:
+            cw.set_value("user", "name", os.environ.get("GIT_AUTHOR_NAME", "Marimo Bot"))
+            cw.set_value("user", "email", os.environ.get("GIT_AUTHOR_EMAIL", "bot@undp.org"))
+        print(f"I am working in: {os.getcwd()}")
+        print(f"Git thinks the root is: {repo.working_tree_dir}")
+        # 2. STAGE: Passing the absolute path is more reliable in Docker
+        repo.index.add([abs_path])
         
-        # 3. Stage & Commit
-        repo.index.add([rel_p])
-        repo.index.commit(f"New notebook: {name}")
+        # 3. COMMIT
+        repo.index.commit(f"Auto-notebook: {name}")
+        if push:
+            # 4. AUTHENTICATED PUSH
+            origin = repo.remote(name='origin')
+            if token and "https://" in origin.url and "@" not in origin.url:
+                auth_url = origin.url.replace("https://", f"https://{token}@")
+                origin.set_url(auth_url)
+                
+                # Explicitly push the current branch
+                origin.push()
+                
+                # Cleanup URL
+                origin.set_url(origin.url.replace(f"{token}@", ""))
         
-        # 4. Authenticated Push
-        origin = repo.remote(name='origin')
-        remote_url = origin.url
-        
-        # Fine-grained tokens work best when injected into the HTTPS URL
-        if "https://" in remote_url and "@" not in remote_url:
-            # We use the token directly as the 'user' in the URL string
-            auth_url = remote_url.replace("https://", f"https://{token}@")
-            origin.set_url(auth_url)
-        
-        # Execute push to remote
-        origin.push()
-        
-        # Safety: Reset URL to original to avoid logging the PAT in git config
-        origin.set_url(remote_url)
-        
-        return mo.status.toast(f"Committed & Pushed: {name}", kind="success")
-        
+            mo.status.toast(f"Pushed: {name}", kind="success")
+        else:
+            mo.status.toast(f"Staged & commited: {name}", kind="success")
     except Exception as e:
-        return mo.status.toast(f"Git failed: {str(e)}", kind="danger")
+        # This will now capture the specific Git error (e.g., "pathspec matches no files")
+        mo.status.toast(f"Git Error: {str(e)}", kind="danger")
 
 
 # 1. The Input Field (lives inside the popup)
