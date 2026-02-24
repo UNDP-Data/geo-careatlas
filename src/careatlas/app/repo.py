@@ -14,7 +14,9 @@ MARIMO_VERSION = getattr(mo, "__version__", "")
 
 def get_repo():
     try:
-        return git.Repo(".", search_parent_directories=True)
+        repo = git.Repo(".", search_parent_directories=True)
+        assert not repo.bare
+        return repo
     except:
         return None
 
