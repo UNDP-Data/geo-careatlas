@@ -193,7 +193,14 @@ def handle_create_notebook(_):
         if not DRY_RUN:
             with open(new_path, "w") as f:
                 f.write(template)
-            commit(message=f"Created {new_path}", nb_file=new_path)
+            repo = get_repo()
+            if repo:
+                # 2. Get the path relative to the repo root
+                rel_p = os.path.relpath(new_path, repo.working_tree_dir)
+                
+                # 3. Add and Commit specifically for this file
+                repo.index.add([rel_p])
+                repo.index.commit(f"New notebook: {name}")
             
         return mo.status.toast(f"Created & Staged: {name} (v{MARIMO_VERSION})", kind="success")
     except Exception as e:
@@ -258,7 +265,7 @@ sidebar_content = mo.Html(
             </div>
         </details>
         
-        <details class="tool-expander" id="create-expander">
+        <details class="tool-expander" id="duplicate-expander">
             <summary title="Duplicate current notebook in current directory">
                 {mo.icon('lucide:copy-plus', size=24)}
             </summary>
