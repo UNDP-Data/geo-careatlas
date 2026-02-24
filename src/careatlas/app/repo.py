@@ -14,12 +14,22 @@ MARIMO_VERSION = getattr(mo, "__version__", "")
 
 def get_repo():
     try:
-        repo = git.Repo(".", search_parent_directories=True)
+        # 1. Initialize the repo
+        repo = git.Repo("/server", search_parent_directories=True)
         assert not repo.bare
+        
+        # 2. Automatically configure identity for this instance
+        # Using a context manager ensures the file lock is released immediately
+        with repo.config_writer() as cw:
+            # Fallback to your UNDP email if env vars are missing
+            cw.set_value("user", "name", os.environ.get("GIT_AUTHOR_NAME", "Marimo bot"))
+            cw.set_value("user", "email", os.environ.get("GIT_AUTHOR_EMAIL", "bot@marimo"))
+        
         return repo
-    except:
+    except Exception as e:
+        # Helpful for debugging if /server isn't found
         return None
-
+    
 # Accept the notebook path as an argument
 def is_modified(nb_path):
     repo = get_repo()
@@ -91,14 +101,8 @@ def stage_commit_push(src:str=None, push:bool=True):
         if not repo:
             return mo.status.toast("Repo not found", kind="danger")
 
-        # 1. Setup Identity (Required for AKS/Docker)
-        with repo.config_writer() as cw:
-            cw.set_value("user", "name", os.environ.get("GIT_AUTHOR_NAME", "Marimo Bot"))
-            cw.set_value("user", "email", os.environ.get("GIT_AUTHOR_EMAIL", "bot@undp.org"))
-        print(f"I am working in: {os.getcwd()}")
-        print(f"Git thinks the root is: {repo.working_tree_dir}")
         # 2. STAGE: Passing the absolute path is more reliable in Docker
-        repo.index.add([abs_path])
+        repo.index.add([abs_path], force=True)
         
         # 3. COMMIT
         repo.index.commit(f"Auto-notebook: {name}")
