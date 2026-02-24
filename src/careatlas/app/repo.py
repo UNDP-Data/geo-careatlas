@@ -89,33 +89,33 @@ def stage_commit_push(src:str=None, push:bool=True):
         if not repo:
             return mo.status.toast("Repo not found", kind="danger")
 
-            # 1. Setup Identity (Required for AKS/Docker)
-            with repo.config_writer() as cw:
-                cw.set_value("user", "name", os.environ.get("GIT_AUTHOR_NAME", "Marimo Bot"))
-                cw.set_value("user", "email", os.environ.get("GIT_AUTHOR_EMAIL", "bot@undp.org"))
-            print(f"I am working in: {os.getcwd()}")
-            print(f"Git thinks the root is: {repo.working_tree_dir}")
-            # 2. STAGE: Passing the absolute path is more reliable in Docker
-            repo.index.add([abs_path])
-            
-            # 3. COMMIT
-            repo.index.commit(f"Auto-notebook: {name}")
-            if push:
-                # 4. AUTHENTICATED PUSH
-                origin = repo.remote(name='origin')
-                if token and "https://" in origin.url and "@" not in origin.url:
-                    auth_url = origin.url.replace("https://", f"https://{token}@")
-                    origin.set_url(auth_url)
-                    
-                    # Explicitly push the current branch
-                    origin.push()
-                    
-                    # Cleanup URL
-                    origin.set_url(origin.url.replace(f"{token}@", ""))
-            
-                mo.status.toast(f"Pushed: {name}", kind="success")
-            else:
-                mo.status.toast(f"Staged & commited: {name}", kind="success")
+        # 1. Setup Identity (Required for AKS/Docker)
+        with repo.config_writer() as cw:
+            cw.set_value("user", "name", os.environ.get("GIT_AUTHOR_NAME", "Marimo Bot"))
+            cw.set_value("user", "email", os.environ.get("GIT_AUTHOR_EMAIL", "bot@undp.org"))
+        print(f"I am working in: {os.getcwd()}")
+        print(f"Git thinks the root is: {repo.working_tree_dir}")
+        # 2. STAGE: Passing the absolute path is more reliable in Docker
+        repo.index.add([abs_path])
+        
+        # 3. COMMIT
+        repo.index.commit(f"Auto-notebook: {name}")
+        if push:
+            # 4. AUTHENTICATED PUSH
+            origin = repo.remote(name='origin')
+            if token and "https://" in origin.url and "@" not in origin.url:
+                auth_url = origin.url.replace("https://", f"https://{token}@")
+                origin.set_url(auth_url)
+                
+                # Explicitly push the current branch
+                origin.push()
+                
+                # Cleanup URL
+                origin.set_url(origin.url.replace(f"{token}@", ""))
+        
+            mo.status.toast(f"Pushed: {name}", kind="success")
+        else:
+            mo.status.toast(f"Staged & commited: {name}", kind="success")
     except Exception as e:
         # This will now capture the specific Git error (e.g., "pathspec matches no files")
         mo.status.toast(f"Git Error: {str(e)}", kind="danger")
