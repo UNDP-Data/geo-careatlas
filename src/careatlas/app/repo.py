@@ -113,12 +113,18 @@ def stage_commit_push(src:str=None, push:bool=True):
                 # Cleanup URL
                 origin.set_url(origin.url.replace(f"{token}@", ""))
         
-            mo.status.toast(f"Pushed: {name}", kind="success")
+                mo.status.toast(f"Pushed: {name}", kind="success")
         else:
             mo.status.toast(f"Staged & commited: {name}", kind="success")
+    except git.exc.GitCommandError as gce:
+        # This captures the ACTUAL terminal error from Git
+        error_msg = f"Git CLI Error: {gce.stderr}"
+        print(error_msg) # Check your Marimo console/terminal
+        return mo.status.toast(error_msg, kind="danger")
     except Exception as e:
         # This will now capture the specific Git error (e.g., "pathspec matches no files")
         mo.status.toast(f"Git Error: {str(e)}", kind="danger")
+        print(e)
 
 
 # 1. The Input Field (lives inside the popup)
