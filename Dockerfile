@@ -4,8 +4,7 @@ FROM ghcr.io/astral-sh/uv:latest AS uv_bin
 # Stage 2: Geospatial Base (Ubuntu/Debian based with GDAL/PROJ pre-installed)
 FROM ghcr.io/osgeo/gdal:ubuntu-small-latest
 
-# Setup Workdir
-WORKDIR /server
+
 
 # Install uv from the builder
 COPY --from=uv_bin /uv /uvbin/uv
@@ -18,6 +17,32 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     tini \
     && rm -rf /var/lib/apt/lists/*
+
+
+# 1. Define build arguments with safe defaults
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+
+# 2. Create a user only if it's not root (ID 0)
+# This prevents conflicts in production environments like AKS
+RUN if [ "$USER_ID" -ne 0 ]; then \
+    groupadd -g $GROUP_ID devuser || true && \
+    useradd -l -u $USER_ID -g $GROUP_ID -m devuser || true; \
+    fi
+
+# Setup Workdir
+WORKDIR /server
+
+# 4. Fix permissions for the WORKDIR
+# This ensures that even if you switch users, the folder is accessible
+RUN chown -R $USER_ID:$GROUP_ID /server && chmod -R 755 /server
+
+# 5. Switch to the user (optional)
+# If you leave this as 'root', the container starts as root but allows the user 
+# to take over via docker-compose.
+USER $USER_ID
+
+
 
 # 4. Copy ONLY the lock/config files first
 COPY pyproject.toml uv.lock .python-version ./

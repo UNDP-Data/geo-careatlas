@@ -2,6 +2,7 @@ services:
   api:
     build: .
     container_name: careatlas
+    user: "${USER_ID}:${GROUP_ID}"
     volumes:
       - ./src:/server/src
     # API now runs on 8001

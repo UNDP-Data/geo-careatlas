@@ -50,7 +50,7 @@ def commit(message, nb_file):
         return mo.status.toast("Commit message is required.", kind='warning')
     try:
         if not DRY_RUN:
-            repo.index.add([nb_file])
+            repo.index.add([nb_file], force=True)
             new_commit = repo.index.commit(message)
             return mo.status.toast(f"Local commit was successful", kind='success')
         
