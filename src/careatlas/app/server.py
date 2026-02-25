@@ -31,7 +31,7 @@ logging.getLogger("nicegui").setLevel(logging.WARNING)
 logger = logging.getLogger()
 
 
-UNDP_RED = "#E5243B"
+UNDP_RED = "[#E5243B]"
 AUTH_URL = f"{os.getenv('AUTH_URL')}/auth"
 UPSTREAM_HOST = "127.0.0.1"
 # Initialize the proxy engines
@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):
     # This loop handles the 1800s timeout and the zombie cleanup
     await manager.startup()
     
-    reaper_task = asyncio.create_task(manager.cleanup_loop(max_idle_seconds=1800))
+    reaper_task = asyncio.create_task(manager.cleanup_loop())
     
     yield  # The NiceGUI app runs here
     
@@ -225,7 +225,7 @@ def undp_header(request:Request=None):
                 # --- BUTTON 1: THE IDENTITY BUTTON (Your "Cool" Original) ---
                 with ui.element('div'):
                     identity_btn = ui.button(icon='account_circle') \
-                        .props(f'flat round dense color={"green" if is_authenticated else "grey"}') \
+                        .props(f'flat round dense color="{UNDP_RED if is_authenticated else "grey"}"') \
                         .classes('w-9 h-9 hover:scale-110 transition') \
                         .tooltip(f'Connected as {email}' if is_authenticated else 'Sign In')
                     
@@ -245,16 +245,16 @@ def undp_header(request:Request=None):
                     ui.element('div').classes('w-[1px] h-6 bg-gray-300 mx-1')
 
                     # Session Manager Icon
-                    ui.button(icon='dns').props('color="[#E5243B]"') \
+                    ui.button(icon='dns').props(f'color="{UNDP_RED}"') \
                         .props('flat round dense') \
-                        .classes('w-9 h-9 hover:scale-110 hover:text-[#E5243B] transition') \
+                        .classes(f'w-9 h-9 hover:scale-110 hover:text-{UNDP_RED} transition') \
                         .tooltip('Session Manager') \
                         .on('click', lambda: ui.navigate.to('/sessions'))
 
                     # System Settings Icon
-                    ui.button(icon='tune').props('color="[#E5243B]"') \
+                    ui.button(icon='tune').props(f'color="{UNDP_RED}"') \
                         .props('flat round dense') \
-                        .classes('w-9 h-9 hover:scale-110 hover:text-[#E5243B] transition') \
+                        .classes(f'w-9 h-9 hover:scale-110 hover:text-{UNDP_RED} transition') \
                         .tooltip('System Settings') \
                         .on('click', lambda: ui.navigate.to('/settings'))
                 
@@ -306,12 +306,12 @@ def page_get_involved(request: Request):
 @app.get("/edit/open/{notebook_name:path}") # Added :path for subfolders
 def edit(notebook_name: str, request: Request):
    
-    print(f'HASHHHHHH {notebook_name}')
+    
     
     # 0. This is your single source of truth from Docker/AKS
     auth_url = AUTH_URL.rstrip('/')
    
-    logger.error(auth_url)
+    
     # 1. Identity & Auth Check
     auth=check_auth(url=AUTH_URL.replace('localhost', 'auth-proxy'), request=request, forward_headers=True)
    
@@ -529,7 +529,7 @@ async def sessions(request: Request):
     auth = check_auth(url=f"{auth_url_internal}/auth", request=request)
     
     if not auth.get('is_authenticated'):
-        return RedirectResponse(url='/explorer/')
+        return RedirectResponse(url=f"{AUTH_URL}/auth")
         
     # 2. Apply your standard header and layout
     undp_layout(request, "Marimo Manager")
