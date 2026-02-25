@@ -1,8 +1,12 @@
 services:
   api:
-    build: .
+    build:
+      context: .
+      args:
+        - USER_ID=${USER_ID:-1000}
+        - GROUP_ID=${GROUP_ID:-1000}
     container_name: careatlas
-    user: "${USER_ID}:${GROUP_ID}"
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
     volumes:
       - ./src:/server/src
     # API now runs on 8001
