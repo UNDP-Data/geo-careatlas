@@ -1,9 +1,8 @@
-# Stage 1: Get the uv tool
-FROM ghcr.io/astral-sh/uv:latest AS uv_bin
+# Stage 1: Pin to the stable uv release
+FROM ghcr.io/astral-sh/uv:0.10.6 AS uv_bin
 
-# Stage 2: Geospatial Base (Ubuntu/Debian based with GDAL/PROJ pre-installed)
-FROM ghcr.io/osgeo/gdal:ubuntu-small-latest
-
+# Stage 2: Pin to the stable GDAL 3.11 release on Ubuntu small
+FROM ghcr.io/osgeo/gdal:ubuntu-small-3.11.4
 # 1. Define build arguments with safe defaults
 ARG USER_ID=1000
 ARG GROUP_ID=1000
