@@ -536,11 +536,11 @@ def hr(border_top_pixels='1'):
 
 
 # 1. Instantiate UI Elements Globally (Outside the function)
-name_input = mo.ui.text(label="Name:")
+name_input = mo.ui.text(label="Name:      ")
 commit_msg = mo.ui.text_area(label="Commit Message", placeholder="Summarize your changes...")
 
 btn_create = mo.ui.button(
-    label=f"{mo.icon('fluent:notebook-add-20-regular')} Create", 
+    label=f"{mo.icon('fluent:notebook-add-20-regular', size=24)} Create", 
     on_click=lambda _: handle_create(name_input), 
     kind="neutral"
 )
@@ -563,26 +563,37 @@ btn_reset = mo.ui.button(
     kind="danger", 
     full_width=False,
 )
-
+gh = f"{mo.icon('mdi:github', size=30)}"
 
 # 2. Arrange elements in the function
 def create_ui():
     # --- TAB 1: FILE OPERATIONS ---
     file_ops = mo.vstack([
 
-        mo.md("--- Notebook Management"),
+        # Clean section header
+        mo.stat(label="", value='🗐 Notebooks',  caption='Enter a unique name to create or copy a notebook.'),
+        
+        # Subtle helper text explaining the action
+        #mo.md("<span style='color: var(--slate-11); font-size: 0.85em;'>Enter a unique name to create or copy a notebook.</span>"),
         name_input,
-        hr(2),
         mo.hstack([
             btn_create,
             btn_duplicate
-        ], justify="start")
-    ])
+        ], justify="start", gap=1)
+    ], gap=1.5)
 
     # --- TAB 2: GIT SYNC ---
     git_ops = mo.vstack([
-        mo.md("### 🌿 Cloud Sync"),
-        mo.md("This will pull changes from others and save your work to GitHub."),
+        # mo.md("### "),
+        # mo.md("This will pull changes from others and save your work to GitHub."),
+        # mo.md(f"""
+        #         <div style="display: flex; align-items: center; gap: 10px;">
+        #             {gh}
+        #             <span style="font-size: 2em; font-weight: bold; line-height: 1;">Sync to GitHub</span>
+        #         </div>
+        # """),
+        # Clean section header
+        mo.stat(label="", value='⭮ GitHub Sync',  caption='This will pull changes and save your work to GitHub.'),
         commit_msg,
         btn_sync,
         hr(),
