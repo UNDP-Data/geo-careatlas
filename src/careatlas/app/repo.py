@@ -8,7 +8,7 @@ import shutil
 # 1. Configuration
 email = os.environ.get("GIT_AUTHOR_EMAIL", None)
 
-DRY_RUN=True
+DRY_RUN=False # for dev
 # Extract version once at the module level or inside the function
 MARIMO_VERSION = getattr(mo, "__version__", "")
 
