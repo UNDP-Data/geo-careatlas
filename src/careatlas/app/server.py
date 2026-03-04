@@ -12,16 +12,10 @@ from pathlib import Path
 from starlette.routing import Mount
 import uuid
 from careatlas.app.util import MarimoManager
+from careatlas.app.fileops import duplicate
 import asyncio
 import httpx
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
-
-
-# This syncs the duality. 
-# It tells the app to use the 'X-Forwarded' headers sent by your proxy.
-
-
-
 
 
 logging.basicConfig(level=logging.INFO)
@@ -67,8 +61,6 @@ async def lifespan(app: FastAPI):
 manager = MarimoManager()
 
 app = FastAPI(title="UNDP CareAtlas", lifespan=lifespan)
-
-
 
 
 def undp_vertical_mark():
@@ -277,16 +269,17 @@ def undp_layout(request: Request, title: str, can_edit:bool=False):
                 # --- RIGHT SIDE ---
                 # We now wrap the buttons in their own row to group them
                 with ui.row().classes('items-center gap-x-4'):  # 'gap-x-4' adds space between buttons
-                    if can_edit:
-                        # First button (Outlined)
-                        ui.button('Duplicate', icon='content_copy', on_click=lambda: ui.notify('Duplicate'))\
-                            .classes(f'undp-btn justify capitalize') \
-                            .tooltip(f'Duplicate an existing notebook')\
+                    pass
+                    # if can_edit:
+                    #     # First button (Outlined)
+                    #     ui.button('Duplicate', icon='content_copy', on_click=lambda: duplicate(notebooks_dir=NOTEBOOKS_DIR))\
+                    #         .classes(f'undp-btn justify capitalize') \
+                    #         .tooltip(f'Duplicate an existing notebook')\
 
-                        # # Second button (Filled) as shown in your image
-                        ui.button('New', icon='add', on_click=lambda: ui.notify('New'), color='var(--undp-red)')\
-                            .classes(f'undp-btn justify capitalize text-white') \
-                            .tooltip(f'Create a new notebook')\
+                    #     # # Second button (Filled) as shown in your image
+                    #     ui.button('New', icon='add', on_click=lambda: ui.notify('New'), color='var(--undp-red)')\
+                    #         .classes(f'undp-btn justify capitalize text-white') \
+                    #         .tooltip(f'Create a new notebook')\
                             
                         
                         
@@ -432,7 +425,7 @@ async def notebook_explorer(request: Request, subpath: str = ""):
     # Identify if user has Edit rights (authenticated users)
     can_edit = auth_data.get('is_authenticated', False)
     # 1. Setup UNDP Layout & Identity
-    undp_layout(request, "Notebook Explorer", can_edit)
+    undp_layout(request, "Notebook Explorer")
     # 2. Resolve the directory to scan
     current_dir = (NOTEBOOKS_DIR / subpath).resolve()
 
