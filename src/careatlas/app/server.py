@@ -34,6 +34,7 @@ async_client = httpx.AsyncClient()
 # mount notebooks dynamically
 BASE_DIR = Path(__file__).parent.parent.resolve() 
 NOTEBOOKS_DIR = (BASE_DIR / "notebooks").resolve()
+os.environ['NOTEBOOKS_DIR'] = str(NOTEBOOKS_DIR)
 
 
 # --- Lifespan Logic ---
@@ -267,18 +268,18 @@ def undp_layout(request: Request, title: str, can_edit:bool=False):
 
                 # --- RIGHT SIDE ---
                 # We now wrap the buttons in their own row to group them
-                with ui.row().classes('items-center gap-x-4'):  # 'gap-x-4' adds space between buttons
-                    pass
-                    # if can_edit:
-                    #     # First button (Outlined)
-                    #     ui.button('Duplicate', icon='content_copy', on_click=lambda: duplicate(notebooks_dir=NOTEBOOKS_DIR))\
-                    #         .classes(f'undp-btn justify capitalize') \
-                    #         .tooltip(f'Duplicate an existing notebook')\
+                with ui.row().classes('items-center gap-x-4 text-sm'):  # 'gap-x-4' adds space between buttons
 
-                    #     # # Second button (Filled) as shown in your image
-                    #     ui.button('New', icon='add', on_click=lambda: ui.notify('New'), color='var(--undp-red)')\
-                    #         .classes(f'undp-btn justify capitalize text-white') \
-                    #         .tooltip(f'Create a new notebook')\
+                    if can_edit:
+                        # First button (Outlined)
+                        ui.button('Duplicate', icon='content_copy', on_click=lambda: ui.notify('Dup'))\
+                            .classes(f'undp-btn justify capitalize') \
+                            .tooltip(f'Duplicate an existing notebook')\
+
+                        # # Second button (Filled) as shown in your image
+                        ui.button('New', icon='add', on_click=lambda: ui.notify('New'), color='var(--undp-red)')\
+                            .classes(f'undp-btn justify capitalize text-white') \
+                            .tooltip(f'Create a new notebook')\
                             
                         
                         
@@ -424,7 +425,7 @@ async def notebook_explorer(request: Request, subpath: str = ""):
     # Identify if user has Edit rights (authenticated users)
     can_edit = auth_data.get('is_authenticated', False)
     # 1. Setup UNDP Layout & Identity
-    undp_layout(request, "Notebook Explorer")
+    undp_layout(request, "Notebook Explorer", can_edit=can_edit)
     # 2. Resolve the directory to scan
     current_dir = (NOTEBOOKS_DIR / subpath).resolve()
 

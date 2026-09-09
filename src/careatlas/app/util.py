@@ -2,14 +2,13 @@ import subprocess
 import socket
 import time
 import logging
-import atexit
 from pathlib import Path
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from typing import Dict, Optional
 import httpx
 import asyncio
 from dataclasses import replace
-import psutil, os, signal
+import psutil
 import os
 from typing import Optional
 
@@ -203,25 +202,16 @@ class MarimoManager:
             
             time.sleep(0.2)
 
-        self.stop_session(session_id, proc_override=proc)
+        # FIX: The loop finished without returning, meaning it timed out.
+        # Clean up the raw process directly since it's not in the manager yet.
+        proc.terminate()
+        try:
+            proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            
         raise TimeoutError(f"Marimo failed to start within {timeout}s")
 
-    # def stop_session(self, session_id: str, proc_override: Optional[subprocess.Popen] = None) -> None:
-    #     """Gracefully stops a session and cleans up resources."""
-    #     session = self._sessions.pop(session_id, None)
-    #     proc = proc_override or (session.proc if session else None)
-
-    #     if not proc:
-    #         return
-
-    #     try:
-    #         proc.terminate()
-    #         proc.wait(timeout=5)
-    #     except subprocess.TimeoutExpired:
-    #         logger.info(f"Session {session_id} refused to terminate. Killing...")
-    #         proc.kill()
-    #     except Exception as e:
-    #         logger.error(f"Error closing session {session_id}: {e}")
     
     def stop_session(self, session_id: str) -> None:
         session = self._sessions.pop(session_id, None)
@@ -328,17 +318,20 @@ class MarimoManager:
         logger.info("Maintenance: Reaping zombie processes...")
         for p in psutil.process_iter(['pid', 'status', 'name']):
             try:
-                # Check for Zombies specifically
                 if p.info['status'] == psutil.STATUS_ZOMBIE:
-                    # 'waitpid' with -1 reaps any child. WNOHANG makes it non-blocking.
-                    os.waitpid(p.info['pid'], os.WNOHANG)
-                    logger.info(f"Successfully reaped zombie PID {p.info['pid']}")
-            except (psutil.NoSuchProcess, ChildProcessError):
+                    try:
+                        # Attempt to reap. Will fail if not a direct child.
+                        os.waitpid(p.info['pid'], os.WNOHANG)
+                        logger.info(f"Successfully reaped zombie PID {p.info['pid']}")
+                    except ChildProcessError:
+                        # Not our child. The OS or Docker Init (PID 1) must handle it.
+                        pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
                     
     def discover_running_sessions(self) -> None:
         """Scan OS processes to reconstruct the manager state on startup."""
-        import psutil
+        
         logger.info("Scanning for orphaned Marimo sessions...")
         
         # We request 'pid' and 'cmdline' to efficiently grab the launch arguments
