@@ -17,13 +17,6 @@ import httpx
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 
-# This syncs the duality. 
-# It tells the app to use the 'X-Forwarded' headers sent by your proxy.
-
-
-
-
-
 logging.basicConfig(level=logging.INFO)
 # silence nicegui internal chatter
 logging.getLogger("nicegui").setLevel(logging.WARNING)
@@ -41,6 +34,7 @@ async_client = httpx.AsyncClient()
 # mount notebooks dynamically
 BASE_DIR = Path(__file__).parent.parent.resolve() 
 NOTEBOOKS_DIR = (BASE_DIR / "notebooks").resolve()
+os.environ['NOTEBOOKS_DIR'] = str(NOTEBOOKS_DIR)
 
 
 # --- Lifespan Logic ---
@@ -67,11 +61,6 @@ async def lifespan(app: FastAPI):
 manager = MarimoManager()
 
 app = FastAPI(title="UNDP CareAtlas", lifespan=lifespan)
-
-
-
-# Add it to FastAPI
-#app.add_middleware(mu.MarimoStaticMiddleware)
 
 
 def undp_vertical_mark():
@@ -251,17 +240,16 @@ def undp_header(request:Request=None):
                         .tooltip('Session Manager') \
                         .on('click', lambda: ui.navigate.to('/sessions'))
 
-                    # System Settings Icon
+                     # System Settings Icon
                     ui.button(icon='tune').props(f'color="{UNDP_RED}"') \
                         .props('flat round dense') \
                         .classes(f'w-9 h-9 hover:scale-110 hover:text-{UNDP_RED} transition') \
                         .tooltip('System Settings') \
                         .on('click', lambda: ui.navigate.to('/settings'))
                 
-                
         
 
-def undp_layout(request: Request, title: str):
+def undp_layout(request: Request, title: str, can_edit:bool=False):
     """Encapsulates shared page logic to avoid repetition."""
     apply_undp_theme()
     
@@ -269,9 +257,33 @@ def undp_layout(request: Request, title: str):
     undp_header(request=request)
     if title:
         with ui.column().classes('w-full max-w-7xl mx-auto px-6 lg:px-8'):
-            ui.label(title).classes('text-4xl font-bold text-black uppercase mb-2')
-            ui.element('div').classes('w-40 h-1 bg-[#006db0] mb-12')
-            # This allows the specific page content to follow below
+            # The main row that separates left and right content
+            with ui.row().classes('w-full justify-between items-center'):
+
+                # --- LEFT SIDE ---
+                # This part remains the same: a column for the divider and title
+                with ui.column():
+                    ui.element('div').classes('w-40 h-1 bg-[#006db0] mb-2')
+                    ui.label(title).classes('text-4xl font-bold text-black uppercase')
+
+                # --- RIGHT SIDE ---
+                # We now wrap the buttons in their own row to group them
+                with ui.row().classes('items-center gap-x-4 text-sm'):  # 'gap-x-4' adds space between buttons
+
+                    if can_edit:
+                        # First button (Outlined)
+                        ui.button('Duplicate', icon='content_copy', on_click=lambda: ui.notify('Dup'))\
+                            .classes(f'undp-btn justify capitalize') \
+                            .tooltip(f'Duplicate an existing notebook')\
+
+                        # # Second button (Filled) as shown in your image
+                        ui.button('New', icon='add', on_click=lambda: ui.notify('New'), color='var(--undp-red)')\
+                            .classes(f'undp-btn justify capitalize text-white') \
+                            .tooltip(f'Create a new notebook')\
+                            
+                        
+                        
+                
 
 # --- 2. Cleaned Routes ---
 @ui.page('/who-we-are')
@@ -406,14 +418,14 @@ async def heartbeat():
 @ui.page('/')
 @ui.page('/notebooks/{subpath:path}')
 async def notebook_explorer(request: Request, subpath: str = ""):
-    # 1. Setup UNDP Layout & Identity
-    undp_layout(request, "Notebook Explorer")
+    
     
     auth_data = check_auth(url=AUTH_URL.replace('localhost', 'auth-proxy'), request=request)
    
     # Identify if user has Edit rights (authenticated users)
     can_edit = auth_data.get('is_authenticated', False)
-    
+    # 1. Setup UNDP Layout & Identity
+    undp_layout(request, "Notebook Explorer", can_edit=can_edit)
     # 2. Resolve the directory to scan
     current_dir = (NOTEBOOKS_DIR / subpath).resolve()
 
@@ -483,7 +495,34 @@ async def notebook_explorer(request: Request, subpath: str = ""):
                             depth = str(rel_path).count('/')
                             r = "../" * (depth + 1)
                             next_uri = f'/apps/{marimo_slug}'
-                            
+                            # with ui.row().classes('w-full justify-center mt-auto'):
+                            #     # Flex container: Launch grows, others stay fixed square
+                            #     with ui.row().classes('w-full max-w-[360px] gap-2 flex-nowrap items-center'):
+                                    
+                            #         if can_edit:
+                            #             # 1. Main Action (Launch)
+                            #             ui.button(
+                            #                 'Launch',
+                            #                 on_click=lambda s=marimo_slug: ui.navigate.to(next_uri)
+                            #             ).classes('undp-btn primary text-white flex-auto capitalize h-10') \
+                            #             .tooltip(f'View as interactive app at {next_uri}')
+                                        
+                            #             # 2. Edit (Icon)
+                            #             ui.button(icon='edit', 
+                            #                 on_click=lambda s=marimo_slug: ui.navigate.to(f'/edit/open/{s}')
+                            #             ).classes('bg-[#006db0] text-white w-10 h-10 shadow-sm') \
+                            #             .props(f'color="{UNDP_RED}" ') \
+                            #             .tooltip(f'Open in Editor mode (Spawns kernel) to /edit/open/{marimo_slug}')
+                                        
+                            #             # 3. Duplicate (Icon)
+                            #             ui.button(icon='content_copy', 
+                            #                 on_click=lambda s=marimo_slug: ui.notify(f'Duplicating {s}...')
+                            #             ).classes('border-{UNDP_RED} text-{UNDP_RED}  w-10 h-10 hover:scale-110 hover:text-{UNDP_RED} transition') \
+                            #             .props(f'color="{UNDP_RED}" outline') \
+                            #             .tooltip('Duplicate this notebook')
+                                        
+                                       
+
                             with ui.row().classes('w-full justify-center mt-auto'):
                                 # This wrapper defines the “middle” area and width budget for buttons
                                 with ui.row().classes('w-full max-w-[360px] gap-2 flex-nowrap'):
@@ -498,7 +537,8 @@ async def notebook_explorer(request: Request, subpath: str = ""):
                                         ui.button(
                                             'Edit',
                                             on_click=lambda s=marimo_slug, r=r: ui.navigate.to(f'/edit/open/{s}')
-                                        ).classes('undp-btn bg-[#006db0] text-white flex-1 w-1/2 capitalize') \
+                                        ).props(f'color="{UNDP_RED}"') \
+                                        .classes('undp-btn text-white flex-1 w-1/2 capitalize') \
                                         .tooltip(f'Open in Editor mode (Spawns kernel) to /edit/open/{marimo_slug}')
 
                                     else:
