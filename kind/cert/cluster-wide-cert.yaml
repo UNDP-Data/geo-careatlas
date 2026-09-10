@@ -1,0 +1,15 @@
+# this is a cluster wide certificate. i shal be created after thge cert manager has been setup
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-undpgeohub-cert
+  namespace: default
+spec:
+  secretName: wildcard-undpgeohub-tls
+  issuerRef:
+    name: letsencrypt
+    kind: ClusterIssuer
+  dnsNames:
+  - "undpgeohub.org"
+  - "*.undpgeohub.org"

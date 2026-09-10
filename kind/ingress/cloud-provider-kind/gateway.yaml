@@ -1,3 +1,5 @@
+# cluster wide gateway api (LB and routing). it needs to be created after the dockercompose has been started and the cloud-provider-kins is operational
+
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -11,4 +13,15 @@ spec:
     port: 80
     allowedRoutes:
       namespaces:
-        from: All   # Allows any namespace across the cluster to attach routes
+        from: All
+  - name: https-wildcard
+    protocol: HTTPS
+    port: 443
+    hostname: "*.undpgeohub.org"
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - name: wildcard-undpgeohub-tls
+    allowedRoutes:
+      namespaces:
+        from: All
