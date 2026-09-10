@@ -45,6 +45,8 @@ spec:
   parentRefs:
   - name: cluster-gateway
     namespace: default
+  hostnames:
+  - "demo.undpgeohub.org"  # Required to match the wildcard Gateway listener
   rules:
   - matches:
     - path:
