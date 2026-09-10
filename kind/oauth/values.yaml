@@ -1,0 +1,26 @@
+config:
+  clientID: "${OAUTH_CLIENT_ID}"
+  clientSecret: "${OAUTH_CLIENT_SECRET}"
+  cookieSecret: "${OAUTH_COOKIE_KEY}"
+  configFile: |-
+    provider = "github"
+    email_domains = [ "*" ]
+    github_org = "${OAUTH_ORG_NAME}"
+    github_team = "${OAUTH_TEAM_NAME}"
+    scope = "user:email,read:org"
+    redirect_url = "https://auth.undpgeohub.org/oauth2/callback"
+    cookie_secure = true
+    reverse_proxy = true
+    set_xauthrequest = true
+    pass_user_headers = true
+    cookie_domains = ["${OAUTH2_PROXY_COOKIE_DOMAINS}"]
+    whitelist_domains = ["${OAUTH2_PROXY_WHITELIST_DOMAINS}"]
+    upstreams = [ "static://200" ]
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    cpu: 300m
+    memory: 128Mi
