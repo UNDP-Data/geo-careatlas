@@ -38,6 +38,8 @@ logger = logging.getLogger(__name__)
 
 APP_FILE = "app.toml"
 SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+# A markdown heading line such as "# Care survey" or "## Results", without trailing #s
+HEADING_PATTERN = re.compile(r"^\s*#{1,6}\s+(.+?)\s*#*\s*$", re.MULTILINE)
 
 
 class Role(IntEnum):
@@ -63,17 +65,35 @@ class Notebook:
     name: str
     path: Path
 
+    def _parse(self) -> ast.Module | None:
+        try:
+            return ast.parse(self.path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, ValueError):
+            return None
+
     @property
     def title(self) -> str:
+        """The notebook's first markdown heading, falling back to its file name.
+
+        Read from the source without running it: the first ``mo.md("# ...")`` in the file.
+        """
+        tree = self._parse()
+        headings = []
+        for node in ast.walk(tree) if tree else ():
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "md"
+                    and node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str)):
+                match = HEADING_PATTERN.search(node.args[0].value)
+                if match:
+                    headings.append((node.lineno, match.group(1).strip()))
+        if headings:
+            return min(headings)[1]
         return Path(self.name).name.replace("_", " ").capitalize()
 
     @property
     def description(self) -> str | None:
         """The notebook's module docstring, if any."""
-        try:
-            doc = ast.get_docstring(ast.parse(self.path.read_text(encoding="utf-8")))
-        except (OSError, SyntaxError):
-            return None
+        tree = self._parse()
+        doc = ast.get_docstring(tree) if tree else None
         return " ".join(doc.split()) if doc else None
 
 

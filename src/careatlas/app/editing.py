@@ -225,6 +225,51 @@ async def edit_page(request: Request, slug: str, notebook: str | None = None):
         ui.timer(STATUS_SECONDS, refresh)
 
 
+async def unpublished_changes_notice(app: App, user: User, role: Role) -> None:
+    """Tell editors when their own copy of the app differs from what viewers see."""
+    key = user_key(user)
+
+    def read_state():
+        if not store.has_workspace(app.slug, key):
+            return None, None
+        return store.status(app.slug, key), store.pending_review(app.slug, key)
+
+    try:
+        state, review = await asyncio.to_thread(read_state)
+    except GitError as exc:
+        logger.warning("Could not read %s's copy of %s: %s", user.username, app.slug, exc)
+        return
+    if state is None:
+        return
+
+    parts = []
+    if state.changed:
+        count = len(state.changed)
+        parts.append(f"{count} file{'s' if count != 1 else ''} changed and not committed")
+    if review:
+        parts.append("your submitted changes are waiting for an owner's review")
+    elif state.ahead:
+        parts.append("committed changes that are not published yet")
+    if state.behind:
+        parts.append("a newer version has been published since you last updated")
+    if not parts:
+        return
+
+    next_step = ("To share your changes, publish them from the editor." if role is Role.OWNER
+                 else "To share your changes, submit them for review from the editor.")
+    if review and not state.changed:
+        next_step = "Owners can publish your changes from this page."
+    with ui.card().classes("undp-card undp-callout w-full"):
+        with ui.row().classes("w-full items-center justify-between no-wrap gap-4"):
+            with ui.row().classes("items-start no-wrap gap-3"):
+                ui.icon("edit_note").classes("text-2xl text-primary")
+                with ui.column().classes("gap-1"):
+                    ui.label("Your copy differs from the published version").classes("font-semibold")
+                    ui.label(f"You have {'; '.join(parts)}. {next_step} "
+                             "'View published' shows what viewers see.").classes("text-grey-8")
+            _button("Continue editing", lambda: ui.navigate.to(editor_url(app.slug)), primary=True)
+
+
 async def upload_notebook(request: Request, slug: str) -> None:
     """Upload a marimo or Jupyter notebook into the user's own copy of the app, then open it."""
     with ui.dialog() as dialog, ui.card().classes("undp-dialog"):

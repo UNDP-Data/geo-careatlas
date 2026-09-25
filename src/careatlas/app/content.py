@@ -360,6 +360,20 @@ class ContentStore:
             raise GitError("No workspace for this app yet")
         return path
 
+    def has_workspace(self, app: str, user: str) -> bool:
+        self._check_names(app, user)
+        return (self.work_root / user / app / ".git").exists()
+
+    def pending_review(self, app: str, user: str) -> Review | None:
+        """The user's submission for this app that is waiting for an owner, if any."""
+        with self._lock:
+            self._check_names(app, user)
+            ref = f"{REVIEW_REFS}/{app}/{user}"
+            if not self._ref_exists(ref):
+                return None
+            commit = self._out("rev-parse", ref)
+            return Review(app=app, user=user, commit=commit, files=self.changed_files(app, commit))
+
     def status(self, app: str, user: str) -> WorkspaceStatus:
         with self._lock:
             tree = self._worktree(app, user)

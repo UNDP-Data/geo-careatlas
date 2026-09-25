@@ -287,3 +287,16 @@ def test_nothing_is_committed_when_nothing_expired(store, remote):
     before = git("--git-dir", str(remote), "rev-parse", "main", cwd=remote.parent)
     assert store.remove_expired_archive(30) == []
     assert git("--git-dir", str(remote), "rev-parse", "main", cwd=remote.parent) == before
+
+
+def test_workspace_state_can_be_read_without_creating_one(store):
+    assert not store.has_workspace("care", "alice")
+    assert store.pending_review("care", "alice") is None
+    assert not store.has_workspace("care", "alice")
+
+    folder = store.workspace("care", "alice")
+    (folder / "main.py").write_text("x = 2\n")
+    store.commit("care", "alice", "Set x to two", ALICE)
+    store.submit_review("care", "alice")
+    assert store.has_workspace("care", "alice")
+    assert store.pending_review("care", "alice").files == ("care/main.py",)

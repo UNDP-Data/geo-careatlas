@@ -386,6 +386,10 @@ body {
     color: var(--undp-gray-600);
 }
 
+.undp-callout {
+    border-top-color: var(--undp-red) !important;
+}
+
 .undp-notebook {
     gap: 0.75rem;
 }

@@ -14,7 +14,7 @@ from careatlas.app.apps import App, AppConfigError, Notebook, Role, Visibility, 
 from careatlas.app.auth import User, get_user, sign_in_url
 from careatlas.app.config import settings
 from careatlas.app.content import GitError, author_for, store
-from careatlas.app.editing import editor_url, reviews_section, upload_notebook
+from careatlas.app.editing import editor_url, reviews_section, unpublished_changes_notice, upload_notebook
 from careatlas.app.layout import confirm, frame, notice, page_title
 from careatlas.app.manage import (
     archive_app,
@@ -249,7 +249,9 @@ def _notebook_card(request: Request, app: App, notebook: Notebook, role: Role) -
                     .props("flat round dense color=grey-8").tooltip("Archive notebook")
         ui.label(notebook.description or "No description.").classes("undp-app-card__text")
         with ui.row().classes("gap-6"):
-            ui.link("Open", notebook_url(app.slug, notebook.name)).classes("undp-cta-link")
+            # Editors may have a different version in their own copy, so name the one this opens.
+            ui.link("View published" if role >= Role.EDITOR else "Open",
+                    notebook_url(app.slug, notebook.name)).classes("undp-cta-link")
             if role >= Role.EDITOR:
                 ui.link("Edit", editor_url(app.slug, notebook.name)).classes("undp-cta-link")
 
@@ -274,6 +276,7 @@ async def app_page(request: Request, slug: str):
             ui.label(app.description).classes("undp-lead")
         _tags(app, user)
         if role >= Role.EDITOR:
+            await unpublished_changes_notice(app, user, role)
             with ui.row().classes("gap-2"):
                 _secondary_button("Open editor", lambda: ui.navigate.to(editor_url(app.slug)), icon="edit")
                 if is_owner:

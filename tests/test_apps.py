@@ -76,3 +76,17 @@ def test_notebooks_skip_private_modules(tmp_path):
     write_app(tmp_path, "nb", "", notebooks=("a.py", "_helpers.py", "sub/b.py", "sub/__init__.py"))
     assert [n.name for n in load_app(tmp_path, "nb").notebooks()] == ["a", "sub/b"]
     assert load_app(tmp_path, "nb").notebooks()[0].description == "A notebook."
+
+
+@pytest.mark.parametrize(("source", "title"), [
+    ('import marimo\n@app.cell\ndef _(mo):\n    mo.md("# Care survey 2023")\n', "Care survey 2023"),
+    ('@app.cell\ndef _(mo):\n    mo.md(r"""\n    Intro text\n\n    ## Results ##\n    """)\n', "Results"),
+    ('@app.cell\ndef a(mo):\n    mo.md("# First")\n@app.cell\ndef b(mo):\n    mo.md("# Second")\n', "First"),
+    ("x = 1\n", "Some notebook"),
+    ("def (:\n", "Some notebook"),
+])
+def test_notebook_title_comes_from_its_first_heading(tmp_path, source, title):
+    path = tmp_path / "some_notebook.py"
+    path.write_text(source)
+    from careatlas.app.apps import Notebook
+    assert Notebook(name="some_notebook", path=path).title == title
