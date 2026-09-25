@@ -122,7 +122,7 @@ def handle_create(name_ui):
 
     if not DRY_RUN:
         # Your boilerplate template
-        template = f'import marimo as mo\n\n@app.cell\ndef menu():\n    from careatlas.app.repo import create_sidebar\n    create_sidebar()\n'
+        template = f'import marimo as mo\n\n@app.cell\ndef menu():\n    from careatlas.old.repo import create_sidebar\n    create_sidebar()\n'
         
         with open(target_path, "w") as f:
             f.write(template)
@@ -172,7 +172,7 @@ def handle_duplicate(name_ui):
 #         '@app.cell\n'
 #         'def menu():\n'
 #         '    import marimo as mo\n'
-#         '    from careatlas.app.repo import create_sidebar\n'
+#         '    from careatlas.old.repo import create_sidebar\n'
 #         '    create_sidebar(marimo_module=mo)\n'
 #         '    return (mo,)\n'
 #     )
@@ -401,7 +401,7 @@ def handle_duplicate(name_ui):
 #         '@app.cell\n'
 #         'def menu():\n'
 #         '    import marimo as mo\n'
-#         '    from careatlas.app.repo import create_sidebar\n'
+#         '    from careatlas.old.repo import create_sidebar\n'
 #         '    create_sidebar(marimo_module=mo)\n'
 #         '    return (mo,)\n'
 #     )

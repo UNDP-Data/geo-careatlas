@@ -1,0 +1,492 @@
+/* Values follow the UNDP Design System (https://design.undp.org). */
+
+/* ProximaNova is licensed to UNDP and served from the official design system package. */
+@font-face {
+    font-family: ProximaNova;
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("https://cdn.jsdelivr.net/npm/@undp/design-system-assets@2.0.2/fonts/proximanova-regular-webfont.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: ProximaNova;
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url("https://cdn.jsdelivr.net/npm/@undp/design-system-assets@2.0.2/fonts/proximanova-medium-webfont.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: ProximaNova;
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url("https://cdn.jsdelivr.net/npm/@undp/design-system-assets@2.0.2/fonts/proximanova-semibold-webfont.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: ProximaNova;
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("https://cdn.jsdelivr.net/npm/@undp/design-system-assets@2.0.2/fonts/proximanova-bold-webfont.woff2") format("woff2");
+}
+
+:root {
+    --undp-blue: #006eb5;
+    --undp-red: #d12800;
+    --undp-black: #000;
+    --undp-gray-100: #fafafa;
+    --undp-gray-200: #f7f7f7;
+    --undp-gray-600: #55606e;
+    --undp-blue-100: #b5d5f5;
+    --undp-max-width: 80rem;
+}
+
+body {
+    font-family: ProximaNova, sans-serif;
+    background-color: var(--undp-gray-200);
+    color: var(--undp-black);
+}
+
+/* The design system uses square corners throughout */
+.q-btn, .q-card, .q-menu {
+    border-radius: 0 !important;
+}
+
+.undp-btn {
+    padding: 1rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.undp-btn--small {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+}
+
+.undp-container {
+    width: 100%;
+    max-width: var(--undp-max-width);
+    margin: 0 auto;
+    padding: 0 1.5rem;
+}
+
+/* Header (Country Site Header) */
+
+.undp-header.nicegui-header {
+    padding: 0;
+    background: var(--undp-gray-100) !important;
+    color: var(--undp-black);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+    /* Quasar gives header and footer the same z-index; keep the fixed header above the footer. */
+    z-index: 2001;
+}
+
+.undp-header__inner {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 7.1875rem;
+    padding: 0 1.5rem;
+}
+
+/* The logo hangs from the top edge and slightly overlaps the header, as in the design system. */
+.undp-header__logo {
+    position: relative;
+    z-index: 1;
+    align-self: flex-start;
+    margin-right: 1.5rem;
+    line-height: 0;
+}
+
+.undp-header__logo img {
+    width: 60px;
+    height: 122px;
+}
+
+.undp-site-title {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    color: inherit;
+    text-decoration: none;
+}
+
+.undp-site-title__region {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--undp-gray-600);
+}
+
+.undp-site-title__name {
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.15;
+}
+
+.undp-menu {
+    flex: 1;
+    justify-content: center;
+}
+
+/* Quasar's gt-sm hides the menu below 1024px; restore flex above it. */
+@media (min-width: 1024px) {
+    .undp-menu {
+        display: flex;
+    }
+}
+
+.undp-menu__link {
+    padding: 0 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--undp-black);
+    text-decoration: none;
+}
+
+.undp-menu__link:hover,
+.undp-menu__link:focus-visible {
+    color: var(--undp-gray-600);
+}
+
+.undp-menu__link--active {
+    font-weight: 700;
+}
+
+.undp-header__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+/* Main content */
+
+.undp-main {
+    gap: 2rem;
+    padding-top: 3rem;
+    padding-bottom: 4rem;
+}
+
+.undp-title__bar {
+    width: 10rem;
+    height: 0.25rem;
+    background: var(--undp-blue);
+}
+
+.undp-title {
+    font-size: 2rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.undp-hero {
+    gap: 1rem;
+    width: 100%;
+    padding: 2.5rem;
+    background: #fff;
+    border-left: 0.5rem solid var(--undp-blue);
+}
+
+.undp-hero__title {
+    font-size: 3rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.undp-hero__lead {
+    max-width: 40rem;
+    font-size: 1.25rem;
+    color: var(--undp-gray-600);
+}
+
+.undp-hero__meta {
+    font-weight: 600;
+    color: var(--undp-blue);
+}
+
+.undp-card {
+    padding: 2rem;
+    border-top: 0.25rem solid var(--undp-blue);
+    box-shadow: none;
+}
+
+/* Mobile navigation (below 1024px) */
+
+.undp-hamburger {
+    display: none;
+    position: relative;
+    width: 1.375rem;
+    min-height: 1.75rem;
+    margin-left: 0.5rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+}
+
+.undp-hamburger__line {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 0.125rem;
+    margin-top: -0.0625rem;
+    background-color: var(--undp-blue);
+    transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+}
+
+.undp-hamburger__line--top {
+    transform: translateY(-6.5px);
+}
+
+.undp-hamburger__line--bottom {
+    transform: translateY(6.5px);
+}
+
+.undp-nav-open .undp-hamburger__line--top {
+    transform: rotate(45deg);
+}
+
+.undp-nav-open .undp-hamburger__line--middle {
+    opacity: 0;
+    transform: translateX(6.33px);
+}
+
+.undp-nav-open .undp-hamburger__line--bottom {
+    transform: rotate(-45deg);
+}
+
+.undp-mobile-nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    height: calc(100vh - 4.6875rem);
+    padding: 0 2rem;
+    overflow-y: auto;
+    background: hsla(0, 0%, 97%, 0.9);
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+}
+
+.undp-mobile-nav__links {
+    margin: 0 0 2.25rem;
+    padding: 5.625rem 0 0;
+    border-bottom: 1px solid #a9b1b7;
+    list-style: none;
+}
+
+.undp-mobile-nav__links li {
+    padding-bottom: 2.25rem;
+}
+
+/* Design system "CTA link": bold uppercase text followed by a red chevron */
+.undp-cta-link {
+    display: inline-flex;
+    align-items: center;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    line-height: 1;
+    text-transform: uppercase;
+    color: var(--undp-black);
+    text-decoration: none;
+}
+
+.undp-cta-link::after {
+    content: "";
+    width: 0.813rem;
+    height: 1.188rem;
+    margin-inline-start: 1rem;
+    background: url("undp/arrow.svg") no-repeat center;
+    transition: transform 0.2s ease;
+}
+
+.undp-cta-link:hover::after,
+.undp-cta-link:focus-visible::after {
+    transform: translateX(0.25rem);
+}
+
+.undp-mobile-nav__options {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.5rem;
+    padding-bottom: 3.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--undp-blue);
+}
+
+.undp-mobile-nav__options a {
+    color: inherit;
+    text-decoration: none;
+    text-transform: uppercase;
+}
+
+.undp-mobile-nav__user {
+    color: var(--undp-gray-600);
+}
+
+/* Footer ("simple" variant) */
+
+.undp-footer.nicegui-footer {
+    display: block;
+    padding: 3.25rem 1.5rem 3rem;
+    background: var(--undp-blue) !important;
+    color: #fff;
+}
+
+.undp-footer__inner {
+    width: 100%;
+    max-width: var(--undp-max-width);
+    margin: 0 auto;
+}
+
+.undp-footer__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    margin-bottom: 2rem;
+    padding-bottom: 3rem;
+    border-bottom: 1px solid #fff;
+}
+
+.undp-footer__brand {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.undp-footer__logo {
+    line-height: 0;
+}
+
+.undp-footer__logo img {
+    width: 60px;
+    height: 123px;
+}
+
+.undp-footer__name {
+    font-size: 1.5rem;
+    line-height: 1.15;
+}
+
+.undp-footer__social {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.undp-footer__social img {
+    display: block;
+    width: 20px;
+    height: 20px;
+}
+
+.undp-footer__bottom {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1.5rem;
+}
+
+.undp-footer__copyright {
+    font-size: 1rem;
+}
+
+.undp-footer__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.125rem 2.25rem;
+}
+
+.undp-footer__link {
+    font-size: 1rem;
+    color: #fff;
+    text-decoration: none;
+}
+
+.undp-footer__link:hover,
+.undp-footer__link:focus-visible {
+    color: var(--undp-blue-100);
+}
+
+/* Tablet and mobile */
+
+@media (max-width: 1023px) {
+    .undp-header__inner {
+        height: 4.6875rem;
+        padding: 0 1rem;
+    }
+
+    .undp-header__logo {
+        margin-right: 1rem;
+    }
+
+    .undp-header__logo img {
+        width: 40px;
+        height: 81px;
+    }
+
+    .undp-hamburger {
+        display: block;
+    }
+
+    .undp-nav-open .undp-mobile-nav {
+        display: block;
+    }
+
+    .undp-nav-open {
+        overflow: hidden;
+    }
+}
+
+@media (max-width: 599px) {
+    .undp-container {
+        padding: 0 1rem;
+    }
+
+    .undp-site-title__region {
+        display: none;
+    }
+
+    .undp-hero {
+        padding: 1.5rem;
+    }
+
+    .undp-hero__title {
+        font-size: 2.25rem;
+    }
+
+    .undp-mobile-nav {
+        padding: 0 1.5rem;
+    }
+
+    .undp-mobile-nav__links {
+        padding-top: 3rem;
+    }
+
+    .undp-footer.nicegui-footer {
+        padding: 2.5rem 1rem 2rem;
+    }
+
+    .undp-footer__top {
+        flex-direction: column;
+        align-items: flex-start;
+        padding-bottom: 2rem;
+    }
+
+    .undp-footer__bottom {
+        flex-direction: column-reverse;
+        align-items: flex-start;
+    }
+}
