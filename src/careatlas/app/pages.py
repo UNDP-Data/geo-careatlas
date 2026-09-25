@@ -14,7 +14,7 @@ from careatlas.app.apps import App, AppConfigError, Notebook, Role, Visibility, 
 from careatlas.app.auth import User, get_user, sign_in_url
 from careatlas.app.config import settings
 from careatlas.app.content import GitError, author_for, store
-from careatlas.app.editing import editor_url, reviews_section
+from careatlas.app.editing import editor_url, reviews_section, upload_notebook
 from careatlas.app.layout import confirm, frame, notice, page_title
 from careatlas.app.manage import (
     archive_app,
@@ -282,8 +282,11 @@ async def app_page(request: Request, slug: str):
 
         with ui.row().classes("undp-page-heading"):
             ui.label("Notebooks").classes("undp-section-title")
-            if is_owner:
-                _primary_button("New notebook", lambda: _add_notebook(request, app.slug), icon="add")
+            with ui.row().classes("gap-2"):
+                if role >= Role.EDITOR:
+                    _secondary_button("Upload notebook", lambda: upload_notebook(request, app.slug), icon="upload")
+                if is_owner:
+                    _primary_button("New notebook", lambda: _add_notebook(request, app.slug), icon="add")
         notebooks = app.notebooks()
         if not notebooks:
             notice("This app has no notebooks yet.")

@@ -75,7 +75,8 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
-def _notebook_env() -> dict[str, str]:
+def notebook_env() -> dict[str, str]:
+    """Environment for processes that handle notebook code: the server's, without its secrets."""
     env = {k: v for k, v in os.environ.items() if k not in SECRET_ENV and not k.startswith("AWS_")}
     env["MARIMO_SKIP_UPDATE_CHECK"] = "1"
     return env
@@ -118,7 +119,7 @@ class EditorManager:
             "--watch",
         ]
         process = subprocess.Popen(
-            command, cwd=folder, env=_notebook_env(),
+            command, cwd=folder, env=notebook_env(),
             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
         )
         deadline = time.monotonic() + STARTUP_TIMEOUT

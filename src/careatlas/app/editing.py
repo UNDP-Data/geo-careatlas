@@ -24,6 +24,7 @@ from careatlas.app.content import GitError, MergeConflict, Review, author_for, s
 from careatlas.app.editor import editors
 from careatlas.app.layout import confirm, frame, notice
 from careatlas.app.moderation import TextError, validate_commit_message
+from careatlas.app.uploads import MAX_UPLOAD_BYTES, UploadError, notebook_name_for, save_to_workspace, to_marimo
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,12 @@ async def edit_page(request: Request, slug: str, notebook: str | None = None):
 
     key = user_key(user)
     is_owner = role is Role.OWNER
-    notebook_file = notebook if notebook and any(n.name == notebook for n in app.notebooks()) else None
+    # The notebook may exist only in the user's own copy, e.g. just uploaded and not yet published.
+    notebook_file = None
+    if notebook:
+        candidate = (session.folder / f"{notebook}.py").resolve()
+        if session.folder.resolve() in candidate.parents and candidate.is_file():
+            notebook_file = notebook
 
     async with frame(request, user=user, wide=True):
         with ui.row().classes("undp-editor-toolbar"):
@@ -217,6 +223,61 @@ async def edit_page(request: Request, slug: str, notebook: str | None = None):
 
         await refresh()
         ui.timer(STATUS_SECONDS, refresh)
+
+
+async def upload_notebook(request: Request, slug: str) -> None:
+    """Upload a marimo or Jupyter notebook into the user's own copy of the app, then open it."""
+    with ui.dialog() as dialog, ui.card().classes("undp-dialog"):
+        ui.label("Upload notebook").classes("undp-dialog__title")
+        ui.label(
+            "A marimo notebook (.py) or a Jupyter notebook (.ipynb), which is converted to marimo. "
+            f"Up to {MAX_UPLOAD_BYTES // (1024 * 1024)} MB. It is added to your own copy of the app; "
+            "nothing is shared until you commit."
+        ).classes("text-grey-8 text-sm")
+
+        async def received(event) -> None:
+            dialog.submit((event.file.name, await event.file.read()))
+
+        ui.upload(
+            on_upload=received,
+            on_rejected=lambda: ui.notify("Choose a .py or .ipynb file under 5 MB.", type="warning"),
+            auto_upload=True,
+            max_files=1,
+            max_file_size=MAX_UPLOAD_BYTES,
+        ).props('accept=".py,.ipynb" flat bordered').classes("w-full")
+        with ui.row().classes("w-full justify-end"):
+            ui.button("Cancel", on_click=lambda: dialog.submit(None)).props("flat")
+    uploaded = await dialog
+    dialog.delete()
+    if not uploaded:
+        return
+
+    checked = await _current_role(request, slug)
+    if checked is None:
+        return
+    filename, data = uploaded
+    try:
+        source = await asyncio.to_thread(to_marimo, filename, data)
+    except UploadError as exc:
+        ui.notify(str(exc), type="negative", multi_line=True)
+        return
+
+    name = notebook_name_for(filename)
+    try:
+        folder = await asyncio.to_thread(store.workspace, slug, user_key(checked[0]))
+        try:
+            await asyncio.to_thread(save_to_workspace, folder, name, source)
+        except FileExistsError:
+            if not await confirm("Replace notebook?",
+                                 f"Your copy of the app already has {name}.py. Replace it with the upload?",
+                                 "Replace"):
+                return
+            await asyncio.to_thread(save_to_workspace, folder, name, source, True)
+    except (GitError, UploadError) as exc:
+        ui.notify(str(exc), type="negative")
+        return
+    logger.info("%s uploaded %s to %s", checked[0].username, name, slug)
+    ui.navigate.to(editor_url(slug, name))
 
 
 async def _choose_side(files: list[str]) -> str | None:
