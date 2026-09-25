@@ -35,6 +35,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tini \
     && rm -rf /var/lib/apt/lists/*
 
+# Content repository and editors' work; mounted as a volume, which inherits this ownership
+RUN mkdir -p /data && chown $USER_ID:$GROUP_ID /data
+
 # 5. Switch to the user (optional)
 # If you leave this as 'root', the container starts as root but allows the user 
 # to take over via docker-compose.

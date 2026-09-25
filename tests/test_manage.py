@@ -91,3 +91,4 @@ def test_archived_notebook_moves_out_of_the_app(tmp_path):
 
 def test_slugify():
     assert slugify("Care Economy 2025!") == "care_economy_2025"
+

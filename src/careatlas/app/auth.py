@@ -6,6 +6,7 @@ the browser's cookie to the proxy's ``/auth`` endpoint, which answers 202 with
 """
 
 import logging
+import time
 from dataclasses import dataclass
 from urllib.parse import urlencode
 
@@ -17,6 +18,15 @@ from careatlas.app.config import settings
 logger = logging.getLogger(__name__)
 
 _client = httpx.AsyncClient(timeout=3.0)
+
+# oauth2-proxy's default cookie name; large sessions are split into _oauth2_proxy_0, _1, ...
+SESSION_COOKIE_PREFIX = "_oauth2_proxy"
+# Pages such as the notebook editor load hundreds of assets, each checked
+# separately. Caching a confirmed session briefly avoids one oauth2-proxy call
+# per asset; revoked access takes effect within this many seconds.
+CACHE_SECONDS = 30
+CACHE_LIMIT = 1000
+_cache: dict[str, tuple[float, "User"]] = {}
 
 
 @dataclass(frozen=True)
@@ -32,9 +42,13 @@ class User:
 
 async def get_user(request: HTTPConnection) -> User | None:
     """Return the signed-in user, or None for anonymous visitors."""
-    cookie = request.headers.get("cookie")
+    cookie = session_cookie(request.headers.get("cookie", ""))
     if not settings.auth_enabled or not cookie:
         return None
+
+    cached = _cache.get(cookie)
+    if cached and cached[0] > time.monotonic():
+        return cached[1]
 
     try:
         response = await _client.get(f"{settings.auth_internal_url}/auth", headers={"Cookie": cookie})
@@ -47,11 +61,27 @@ async def get_user(request: HTTPConnection) -> User | None:
 
     headers = response.headers
     groups = tuple(g.strip() for g in headers.get("x-auth-request-groups", "").split(",") if g.strip())
-    return User(
+    user = User(
         username=headers.get("x-auth-request-user", ""),
         email=headers.get("x-auth-request-email", ""),
         groups=groups,
     )
+    if len(_cache) >= CACHE_LIMIT:
+        now = time.monotonic()
+        for key in [k for k, (expires, _) in _cache.items() if expires <= now] or list(_cache)[: CACHE_LIMIT // 2]:
+            _cache.pop(key, None)
+    _cache[cookie] = (time.monotonic() + CACHE_SECONDS, user)
+    return user
+
+
+def session_cookie(header: str) -> str:
+    """The oauth2-proxy session cookies from a Cookie header, as a Cookie header value."""
+    pairs = []
+    for part in header.split(";"):
+        name, sep, value = part.strip().partition("=")
+        if sep and name.startswith(SESSION_COOKIE_PREFIX):
+            pairs.append(f"{name}={value}")
+    return "; ".join(sorted(pairs))
 
 
 def page_url(request: HTTPConnection) -> str:

@@ -9,8 +9,10 @@ services:
     user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
     volumes:
       - ./src:/server/src
-    # API now runs on 8001
-    #command: uv run uvicorn careatlas.app.server:app --host 0.0.0.0 --port 8001
+      # Content repository clone and editors' uncommitted work
+      - careatlas-data:/data
+    ports:
+      - "8080:8001"
     command: uv run uvicorn careatlas.app.server:app --host 0.0.0.0 --port 8001 --reload --reload-dir /server/src/careatlas/app
     env_file:
       - .env
@@ -22,20 +24,8 @@ services:
       - FORWARDED_ALLOW_IPS=*
       - ENV=dev
       - GITHUB_PAT_TOKEN=${GITHUB_PAT_TOKEN}
-
-  mitmproxy:
-    image: mitmproxy/mitmproxy:latest
-    container_name: careatlas-mitm
-    volumes:
-      - ./src/careatlas/old/proxy.py:/home/mitmproxy/proxy.py
-    command: >
-      mitmdump --mode reverse:http://api:8001/
-      -s /home/mitmproxy/proxy.py
-      --set keep_host_header=false -q
-    ports:
-      - "8080:8080"
-    depends_on:
-      - api
+      - DATA_DIR=/data
+      - CONTENT_REPO=https://github.com/UNDP-Data/geo-careatlas-notebooks.git
 
   auth-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:latest
@@ -46,8 +36,8 @@ services:
       - .env
     environment:
       OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:4180"
-      # IMPORTANT: Points to mitmproxy now
-      OAUTH2_PROXY_UPSTREAMS: "http://mitmproxy:8080" 
+      # CareAtlas checks sessions against /oauth2/auth itself, as on KIND, so nothing is proxied.
+      OAUTH2_PROXY_UPSTREAMS: "static://202"
       OAUTH2_PROXY_COOKIE_DOMAINS:
       OAUTH2_PROXY_WHITELIST_DOMAINS: "localhost:4180,localhost:8080,.localhost"
       OAUTH2_PROXY_PROVIDER: "github"
@@ -65,5 +55,6 @@ services:
       OAUTH2_PROXY_PASS_USER_HEADERS: "true"
       OAUTH2_PROXY_REVERSE_PROXY: "true"
       OAUTH2_PROXY_TRUSTED_IPS: "0.0.0.0/0"
-      # Tell the proxy NOT to challenge for these paths
-      #OAUTH2_PROXY_SKIP_AUTH_ROUTES: "^/explorer/.*,^/static/.*"
+
+volumes:
+  careatlas-data:

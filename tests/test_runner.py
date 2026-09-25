@@ -19,18 +19,19 @@ def anyio_backend():
 
 @pytest.fixture
 def content(tmp_path, monkeypatch):
-    write_app(tmp_path, "open", 'visibility = "public"\n')
-    write_app(tmp_path, "closed", 'visibility = "restricted"\n[members]\nviewers = ["bob"]\n')
+    published = tmp_path / "published"
+    write_app(published, "open", 'visibility = "public"\n')
+    write_app(published, "closed", 'visibility = "restricted"\n[members]\nviewers = ["bob"]\n')
     patched = dataclasses.replace(
         settings,
-        content_dir=tmp_path,
+        data_dir=tmp_path,
         auth_internal_url="http://auth.test/oauth2",
         auth_public_url="http://auth.test/oauth2",
         public_url="http://careatlas.test",
     )
     monkeypatch.setattr(runner, "settings", patched)
     monkeypatch.setattr(auth, "settings", patched)
-    return tmp_path
+    return published
 
 
 def scope(path: str, kind: str = "http") -> dict:

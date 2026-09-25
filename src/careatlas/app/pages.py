@@ -1,7 +1,10 @@
 """Site pages. Importing this module registers the routes with NiceGUI."""
 
+import asyncio
 import dataclasses
 import logging
+from collections.abc import Callable
+from pathlib import Path
 
 from fastapi import Request
 from fastapi.responses import RedirectResponse
@@ -10,6 +13,8 @@ from nicegui import ui
 from careatlas.app.apps import App, AppConfigError, Notebook, Role, Visibility, load_app, visible_apps
 from careatlas.app.auth import User, get_user, sign_in_url
 from careatlas.app.config import settings
+from careatlas.app.content import GitError, author_for, store
+from careatlas.app.editing import editor_url, reviews_section
 from careatlas.app.layout import confirm, frame, notice, page_title
 from careatlas.app.manage import (
     archive_app,
@@ -48,6 +53,25 @@ async def _owner_check(request: Request, slug: str) -> tuple[App, User] | None:
         ui.notify("Only owners of this app can do that.", type="negative")
         return None
     return app, user
+
+
+def _owned_app(tree: Path, slug: str, user: User) -> App:
+    """The app as it is on main right now, if the user still owns it there."""
+    app = load_app(tree, slug)
+    if app is None or app.role_for(user) is not Role.OWNER:
+        raise AppConfigError("Only owners of this app can do that")
+    return app
+
+
+async def _commit_to_main(message: str, user: User, change: Callable[[Path], None]) -> bool:
+    """Apply an owner's change to main, commit it as them and publish it. Reports errors to the user."""
+    try:
+        await asyncio.to_thread(store.change_main, message, author_for(user), change)
+    except (AppConfigError, GitError) as exc:
+        ui.notify(str(exc), type="negative")
+        return False
+    logger.info("%s: %s", user.username, message)
+    return True
 
 
 def _primary_button(label: str, on_click, icon: str | None = None) -> ui.button:
@@ -142,22 +166,19 @@ async def new_app_page(request: Request):
                 if creator is None:
                     ui.notify("Your session has expired. Sign in again.", type="negative")
                     return
-                try:
-                    app = create_app(
-                        settings.content_dir,
-                        slug.value.strip(),
-                        title.value,
-                        description.value,
-                        Visibility(visibility.value),
-                        creator,
-                    )
-                except AppConfigError as exc:
-                    ui.notify(str(exc), type="negative")
-                    return
-                logger.info("%s created app %s", creator.username, app.slug)
-                ui.navigate.to(f"/apps/{app.slug}")
+                new_slug = slug.value.strip()
 
-            _primary_button("Create app", submit)
+                def change(tree: Path) -> None:
+                    create_app(tree, new_slug, title.value, description.value, Visibility(visibility.value), creator)
+
+                create_button.props("loading")
+                try:
+                    if await _commit_to_main(f"Create app {new_slug}", creator, change):
+                        ui.navigate.to(f"/apps/{new_slug}")
+                finally:
+                    create_button.props(remove="loading")
+
+            create_button = _primary_button("Create app", submit)
 
 
 async def _add_notebook(request: Request, slug: str) -> None:
@@ -177,14 +198,14 @@ async def _add_notebook(request: Request, slug: str) -> None:
     checked = await _owner_check(request, slug)
     if checked is None:
         return
-    app, user = checked
-    try:
-        notebook = create_notebook(app, name.value.strip(), title=title.value.strip() or None)
-    except AppConfigError as exc:
-        ui.notify(str(exc), type="negative")
-        return
-    logger.info("%s added notebook %s to %s", user.username, notebook.name, app.slug)
-    ui.navigate.reload()
+    _, user = checked
+    notebook_name = name.value.strip()
+
+    def change(tree: Path) -> None:
+        create_notebook(_owned_app(tree, slug, user), notebook_name, title=title.value.strip() or None)
+
+    if await _commit_to_main(f"Add notebook {slug}/{notebook_name}", user, change):
+        ui.navigate.reload()
 
 
 async def _archive_notebook(request: Request, slug: str, notebook_name: str) -> None:
@@ -197,25 +218,31 @@ async def _archive_notebook(request: Request, slug: str, notebook_name: str) -> 
     checked = await _owner_check(request, slug)
     if checked is None:
         return
-    app, user = checked
-    notebook = next((n for n in app.notebooks() if n.name == notebook_name), None)
-    if notebook is None:
-        ui.notify("That notebook no longer exists.", type="warning")
-        return
-    archive_notebook(settings.content_dir, app, notebook)
-    logger.info("%s archived notebook %s of %s", user.username, notebook_name, app.slug)
-    ui.navigate.reload()
+    _, user = checked
+
+    def change(tree: Path) -> None:
+        app = _owned_app(tree, slug, user)
+        notebook = next((n for n in app.notebooks() if n.name == notebook_name), None)
+        if notebook is None:
+            raise AppConfigError("That notebook no longer exists")
+        archive_notebook(tree, app, notebook)
+
+    if await _commit_to_main(f"Archive notebook {slug}/{notebook_name}", user, change):
+        ui.navigate.reload()
 
 
-def _notebook_card(request: Request, app: App, notebook: Notebook, is_owner: bool) -> None:
+def _notebook_card(request: Request, app: App, notebook: Notebook, role: Role) -> None:
     with ui.card().classes("undp-card undp-notebook"):
         with ui.row().classes("w-full justify-between items-start no-wrap"):
             ui.label(notebook.title).classes("undp-app-card__title")
-            if is_owner:
+            if role is Role.OWNER:
                 ui.button(icon="archive", on_click=lambda: _archive_notebook(request, app.slug, notebook.name)) \
                     .props("flat round dense color=grey-8").tooltip("Archive notebook")
         ui.label(notebook.description or "No description.").classes("undp-app-card__text")
-        ui.link("Open", notebook_url(app.slug, notebook.name)).classes("undp-cta-link")
+        with ui.row().classes("gap-6"):
+            ui.link("Open", notebook_url(app.slug, notebook.name)).classes("undp-cta-link")
+            if role >= Role.EDITOR:
+                ui.link("Edit", editor_url(app.slug, notebook.name)).classes("undp-cta-link")
 
 
 @ui.page("/apps/{slug}")
@@ -237,9 +264,12 @@ async def app_page(request: Request, slug: str):
         if app.description:
             ui.label(app.description).classes("undp-lead")
         _tags(app, user)
-        if is_owner:
+        if role >= Role.EDITOR:
             with ui.row().classes("gap-2"):
-                _secondary_button("Settings", lambda: ui.navigate.to(f"/apps/{app.slug}/settings"), icon="settings")
+                _secondary_button("Open editor", lambda: ui.navigate.to(editor_url(app.slug)), icon="edit")
+                if is_owner:
+                    _secondary_button("Settings", lambda: ui.navigate.to(f"/apps/{app.slug}/settings"),
+                                      icon="settings")
 
         with ui.row().classes("undp-page-heading"):
             ui.label("Notebooks").classes("undp-section-title")
@@ -250,7 +280,10 @@ async def app_page(request: Request, slug: str):
             notice("This app has no notebooks yet.")
         with ui.element("div").classes("undp-grid"):
             for notebook in notebooks:
-                _notebook_card(request, app, notebook, is_owner)
+                _notebook_card(request, app, notebook, role)
+
+        if is_owner:
+            await reviews_section(request, app)
 
         ui.label("Members").classes("undp-section-title")
         with ui.element("div").classes("undp-members"):
@@ -340,23 +373,24 @@ async def app_settings_page(request: Request, slug: str):
                 checked = await _owner_check(request, slug)
                 if checked is None:
                     return
-                current, editor = checked
-                try:
-                    saved = save_app(dataclasses.replace(
-                        current,
+                _, editor = checked
+                saved: list[App] = []
+
+                def change(tree: Path) -> None:
+                    saved.append(save_app(dataclasses.replace(
+                        _owned_app(tree, slug, editor),
                         title=title.value,
                         description=description.value,
                         visibility=Visibility(visibility.value),
                         owners=tuple(owners.members),
                         editors=tuple(editors.members),
                         viewers=tuple(viewers.members),
-                    ))
-                except AppConfigError as exc:
-                    ui.notify(str(exc), type="negative")
+                    )))
+
+                if not await _commit_to_main(f"Update settings of {slug}", editor, change):
                     return
-                logger.info("%s updated settings of %s", editor.username, saved.slug)
-                if saved.role_for(editor) is not Role.OWNER:
-                    ui.navigate.to(f"/apps/{saved.slug}")
+                if saved and saved[0].role_for(editor) is not Role.OWNER:
+                    ui.navigate.to(f"/apps/{slug}")
                     return
                 ui.notify("Settings saved.", type="positive")
 
@@ -379,9 +413,12 @@ async def app_settings_page(request: Request, slug: str):
                 checked = await _owner_check(request, slug)
                 if checked is None:
                     return
-                current, editor = checked
-                archive_app(settings.content_dir, current)
-                logger.info("%s archived app %s", editor.username, current.slug)
-                ui.navigate.to("/")
+                _, editor = checked
+
+                def change(tree: Path) -> None:
+                    archive_app(tree, _owned_app(tree, slug, editor))
+
+                if await _commit_to_main(f"Archive app {slug}", editor, change):
+                    ui.navigate.to("/")
 
             _secondary_button("Archive app", archive, icon="archive")

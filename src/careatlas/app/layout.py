@@ -185,21 +185,28 @@ _UNSET = object()
 
 
 @asynccontextmanager
-async def frame(request: Request, title: str | None = None, user: User | None = _UNSET) -> AsyncIterator[User | None]:
+async def frame(
+    request: Request,
+    title: str | None = None,
+    user: User | None = _UNSET,
+    wide: bool = False,
+) -> AsyncIterator[User | None]:
     """Render the shared chrome around a page and yield the current user.
 
     Pass ``user`` when the page has already looked it up, to avoid a second
-    round trip to oauth2-proxy.
+    round trip to oauth2-proxy. ``wide`` uses the full window without a footer,
+    for tools such as the notebook editor.
     """
     if user is _UNSET:
         user = await get_user(request)
     _theme()
     _header(request, user)
-    with ui.column().classes("undp-container undp-main"):
+    with ui.column().classes("undp-editor-main" if wide else "undp-container undp-main"):
         if title:
             page_title(title)
         yield user
-    _footer()
+    if not wide:
+        _footer()
 
 
 def notice(text: str) -> None:
