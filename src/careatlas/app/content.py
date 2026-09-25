@@ -34,6 +34,7 @@ from pathlib import Path
 from careatlas.app.apps import APP_FILE, SLUG_PATTERN
 from careatlas.app.auth import User
 from careatlas.app.config import SAMPLE_CONTENT_DIR, settings
+from careatlas.app.manage import expired_archive_entries, remove_expired_archive
 
 logger = logging.getLogger(__name__)
 
@@ -297,6 +298,31 @@ class ContentStore:
             with self._temporary_worktree() as tree:
                 change(tree)
                 return self._commit_to_main(tree, message, author)
+
+    def remove_expired_archive(self, retention_days: int) -> list[str]:
+        """Remove archived apps and notebooks older than the retention period from main.
+
+        They stay in the repository's history. Returns the removed paths.
+        """
+        with self._lock:
+            self._require_ready()
+            if not expired_archive_entries(self.published, retention_days):
+                return []
+            removed: list[str] = []
+
+            def change(tree: Path) -> None:
+                removed.extend(remove_expired_archive(tree, retention_days))
+
+            listing = "\n".join(
+                f"- {entry.relative_to(self.published).as_posix()}"
+                for entry in expired_archive_entries(self.published, retention_days)
+            )
+            self.change_main(
+                f"Remove archived items older than {retention_days} days\n\n{listing}",
+                Author(BOT_NAME, BOT_EMAIL),
+                change,
+            )
+            return removed
 
     # --- editor workspaces ---------------------------------------------------
 

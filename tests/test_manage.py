@@ -92,3 +92,39 @@ def test_archived_notebook_moves_out_of_the_app(tmp_path):
 def test_slugify():
     assert slugify("Care Economy 2025!") == "care_economy_2025"
 
+
+
+def test_expired_archive_entries_use_the_archive_date(tmp_path):
+    from datetime import datetime, timezone
+
+    from careatlas.app.manage import expired_archive_entries, remove_expired_archive
+
+    archive = tmp_path / "_archive"
+    (archive / "old_app-20260101-120000").mkdir(parents=True)
+    (archive / "new_app-20260920-120000").mkdir()
+    (archive / "care").mkdir()
+    (archive / "care" / "old_notebook-20260201-000000.py").write_text("")
+    (archive / "care" / "new_notebook-20260920-000000.py").write_text("")
+    (archive / "unrecognised").mkdir()
+    now = datetime(2026, 9, 25, tzinfo=timezone.utc)
+
+    expired = expired_archive_entries(tmp_path, 30, now)
+    assert [p.name for p in expired] == ["old_app-20260101-120000", "old_notebook-20260201-000000.py"]
+    assert expired_archive_entries(tmp_path, 0, now) == []
+
+    assert remove_expired_archive(tmp_path, 30, now) == [
+        "_archive/old_app-20260101-120000",
+        "_archive/care/old_notebook-20260201-000000.py",
+    ]
+    assert sorted(p.name for p in archive.iterdir()) == ["care", "new_app-20260920-120000", "unrecognised"]
+
+
+def test_folder_emptied_by_removal_is_deleted(tmp_path):
+    from datetime import datetime, timezone
+
+    from careatlas.app.manage import remove_expired_archive
+
+    (tmp_path / "_archive" / "care").mkdir(parents=True)
+    (tmp_path / "_archive" / "care" / "nb-20260101-000000.py").write_text("")
+    remove_expired_archive(tmp_path, 30, datetime(2026, 9, 25, tzinfo=timezone.utc))
+    assert not (tmp_path / "_archive" / "care").exists()

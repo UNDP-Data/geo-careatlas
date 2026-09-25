@@ -74,6 +74,15 @@ async def _commit_to_main(message: str, user: User, change: Callable[[Path], Non
     return True
 
 
+def _archive_note(plural: bool = False) -> str:
+    """Sentence telling owners how long archived items are kept."""
+    subject, pronoun = ("They are", "them") if plural else ("It is", "it")
+    days = settings.archive_retention_days
+    if days > 0:
+        return f"{subject} kept in the archive for {days} days, during which an administrator can restore {pronoun}."
+    return f"{subject} kept in the archive, from which an administrator can restore {pronoun}."
+
+
 def _primary_button(label: str, on_click, icon: str | None = None) -> ui.button:
     return ui.button(label, icon=icon, on_click=on_click) \
         .props("unelevated no-wrap color=secondary").classes("undp-btn undp-btn--small")
@@ -211,7 +220,7 @@ async def _add_notebook(request: Request, slug: str) -> None:
 async def _archive_notebook(request: Request, slug: str, notebook_name: str) -> None:
     if not await confirm(
         "Archive notebook?",
-        f"'{notebook_name}' will be removed from the app. It is kept in the archive and can be restored.",
+        f"'{notebook_name}' will be removed from the app. {_archive_note()}",
         "Archive",
     ):
         return
@@ -398,8 +407,7 @@ async def app_settings_page(request: Request, slug: str):
 
             ui.label("Archive app").classes("undp-section-title")
             ui.label(
-                "Removes the app and all its notebooks from CareAtlas. "
-                "They are kept in the archive and can be restored by an administrator."
+                f"Removes the app and all its notebooks from CareAtlas. {_archive_note(plural=True)}"
             ).classes("text-grey-8")
 
             async def archive() -> None:

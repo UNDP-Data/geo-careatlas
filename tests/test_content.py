@@ -267,3 +267,23 @@ def test_later_work_survives_approval_of_an_earlier_submission(store):
     store.update_from_main("care", "alice", ALICE)
     status = store.status("care", "alice")
     assert (status.ahead, status.behind) == (1, 0)
+
+
+def test_expired_archive_is_removed_from_main_but_kept_in_history(store, remote):
+    def archive_old_app(tree):
+        (tree / "_archive" / "gone-20200101-000000").mkdir(parents=True)
+        (tree / "_archive" / "gone-20200101-000000" / "app.toml").write_text('title = "Gone"\n')
+
+    store.change_main("Archive app gone", OWNER, archive_old_app)
+    assert store.remove_expired_archive(30) == ["_archive/gone-20200101-000000"]
+    assert not (store.published / "_archive").exists()
+
+    subject = git("--git-dir", str(remote), "log", "-1", "--format=%an|%s", "main", cwd=remote.parent)
+    assert subject == "CareAtlas|Remove archived items older than 30 days"
+    assert remote_file(remote, "main~1", "_archive/gone-20200101-000000/app.toml") == 'title = "Gone"'
+
+
+def test_nothing_is_committed_when_nothing_expired(store, remote):
+    before = git("--git-dir", str(remote), "rev-parse", "main", cwd=remote.parent)
+    assert store.remove_expired_archive(30) == []
+    assert git("--git-dir", str(remote), "rev-parse", "main", cwd=remote.parent) == before

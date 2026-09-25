@@ -2,7 +2,9 @@
 
 Nothing is deleted outright. Archived apps and notebooks are moved to
 ``<content>/_archive/``, which is never listed or served (its name is not a
-valid app slug), and can be restored by moving them back.
+valid app slug), and can be restored by moving them back. Entries older than
+the retention period are removed by ``expired_archive_entries`` and
+``remove_expired_archive``; they remain in the repository's history.
 
 Callers are responsible for checking that the user is allowed to perform the
 operation (see ``pages.py``); this module only validates the data.
@@ -14,7 +16,7 @@ import os
 import re
 import shutil
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import marimo
@@ -23,6 +25,9 @@ from careatlas.app.apps import APP_FILE, SLUG_PATTERN, App, AppConfigError, Note
 from careatlas.app.auth import User
 
 ARCHIVE_DIR = "_archive"
+TIMESTAMP_FORMAT = "%Y%m%d-%H%M%S"
+# Archive entries end with the time they were archived: "<app>-<timestamp>" or "<notebook>-<timestamp>.py"
+ARCHIVE_ENTRY_PATTERN = re.compile(r"-(\d{8}-\d{6})(?:\.py)?$")
 NOTEBOOK_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 
 _GITHUB_NAME = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})"
@@ -109,7 +114,7 @@ def _write_atomic(path: Path, content: str) -> None:
 
 
 def _timestamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    return datetime.now(timezone.utc).strftime(TIMESTAMP_FORMAT)
 
 
 def save_app(app: App) -> App:
@@ -202,3 +207,39 @@ def archive_app(content_dir: Path, app: App) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(app.path, target)
     return target
+
+
+def archived_at(entry: Path) -> datetime | None:
+    """When an archive entry was archived, from its name. None if the name has no timestamp."""
+    match = ARCHIVE_ENTRY_PATTERN.search(entry.name)
+    if not match:
+        return None
+    return datetime.strptime(match.group(1), TIMESTAMP_FORMAT).replace(tzinfo=timezone.utc)
+
+
+def expired_archive_entries(content_dir: Path, retention_days: int, now: datetime | None = None) -> list[Path]:
+    """Archived apps and notebooks older than the retention period, oldest first."""
+    archive = content_dir / ARCHIVE_DIR
+    if retention_days <= 0 or not archive.is_dir():
+        return []
+    cutoff = (now or datetime.now(timezone.utc)) - timedelta(days=retention_days)
+    candidates = list(archive.iterdir())
+    # Archived notebooks sit one level down, in a folder named after their app.
+    for folder in [c for c in candidates if c.is_dir() and archived_at(c) is None]:
+        candidates.extend(folder.iterdir())
+    expired = [(when, entry) for entry in candidates if (when := archived_at(entry)) and when < cutoff]
+    return [entry for _, entry in sorted(expired)]
+
+
+def remove_expired_archive(content_dir: Path, retention_days: int, now: datetime | None = None) -> list[str]:
+    """Delete expired archive entries and return their paths relative to the content directory."""
+    removed = []
+    for entry in expired_archive_entries(content_dir, retention_days, now):
+        removed.append(entry.relative_to(content_dir).as_posix())
+        if entry.is_dir():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+            if not any(entry.parent.iterdir()):
+                entry.parent.rmdir()
+    return removed

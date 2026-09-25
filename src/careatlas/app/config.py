@@ -36,6 +36,9 @@ class Settings:
     github_token: str | None
     # Minutes without a browser connection before an editor session shuts down.
     edit_idle_minutes: int
+    # Days archived apps and notebooks are kept before removal (0 keeps them forever).
+    # Removed items remain in the content repository's history.
+    archive_retention_days: int
 
     @property
     def auth_enabled(self) -> bool:
@@ -56,4 +59,5 @@ settings = Settings(
     content_repo=os.getenv("CONTENT_REPO", "").strip(),
     github_token=os.getenv("GITHUB_PAT_TOKEN") or None,
     edit_idle_minutes=int(os.getenv("EDIT_IDLE_MINUTES", "60")),
+    archive_retention_days=int(os.getenv("ARCHIVE_RETENTION_DAYS", "30")),
 )

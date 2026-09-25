@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 STATIC_DIR = Path(__file__).parent / "static"
 # How often to pick up changes pushed to the content repository from elsewhere.
 REFRESH_SECONDS = 300
+ARCHIVE_CLEANUP_SECONDS = 24 * 3600
 
 app = FastAPI(title="UNDP CareAtlas")
 
@@ -48,8 +49,20 @@ async def prepare_content() -> None:
             except (GitError, OSError) as exc:
                 logger.warning("Could not refresh content: %s", exc)
 
+    async def clean_archive_daily() -> None:
+        while True:
+            try:
+                removed = await asyncio.to_thread(store.remove_expired_archive, settings.archive_retention_days)
+                if removed:
+                    logger.info("Removed expired archive entries: %s", ", ".join(removed))
+            except (GitError, OSError) as exc:
+                logger.warning("Could not clean up the archive: %s", exc)
+            await asyncio.sleep(ARCHIVE_CLEANUP_SECONDS)
+
     asyncio.create_task(refresh_periodically())
     asyncio.create_task(editors.reap())
+    if settings.archive_retention_days > 0:
+        asyncio.create_task(clean_archive_daily())
 
 
 app.mount(RUN_PREFIX, create_runner())
