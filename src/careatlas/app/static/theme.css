@@ -336,6 +336,136 @@ body {
     color: var(--undp-gray-600);
 }
 
+/* Apps */
+
+.undp-lead {
+    max-width: 48rem;
+    font-size: 1.25rem;
+    color: var(--undp-gray-600);
+}
+
+.undp-section-title {
+    margin-top: 1rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.undp-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    gap: 1.5rem;
+    width: 100%;
+}
+
+.undp-app-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 2rem;
+    background: #fff;
+    border-top: 0.25rem solid var(--undp-blue);
+    color: inherit;
+    text-decoration: none;
+    transition: box-shadow 0.2s ease;
+}
+
+.undp-app-card:hover,
+.undp-app-card:focus-visible {
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
+}
+
+.undp-app-card__title {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.undp-app-card__text {
+    flex: 1;
+    color: var(--undp-gray-600);
+}
+
+.undp-notebook {
+    gap: 0.75rem;
+}
+
+.undp-tag {
+    padding: 0.25rem 0.5rem;
+    background: var(--undp-gray-200);
+    border: 1px solid #d4d6d8;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.undp-tag--accent {
+    background: var(--undp-blue);
+    border-color: var(--undp-blue);
+    color: #fff;
+}
+
+.undp-members {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.5rem 2rem;
+}
+
+.undp-members__role {
+    font-weight: 700;
+}
+
+/* Forms and owner tools */
+
+.q-field--outlined .q-field__control,
+.q-chip {
+    border-radius: 0 !important;
+}
+
+.undp-page-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    width: 100%;
+    gap: 1rem;
+}
+
+.undp-form {
+    width: 100%;
+    max-width: 40rem;
+    gap: 1rem;
+}
+
+.undp-field-label {
+    margin-top: 0.5rem;
+    font-weight: 600;
+}
+
+.undp-members-editor {
+    width: 100%;
+    gap: 0.5rem;
+    padding: 1rem 0;
+    border-bottom: 1px solid #d4d6d8;
+}
+
+.undp-back-link {
+    color: var(--undp-blue);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.undp-dialog {
+    width: min(28rem, calc(100vw - 2rem));
+    gap: 1rem;
+    padding: 1.5rem;
+}
+
+.undp-dialog__title {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
 /* Footer ("simple" variant) */
 
 .undp-footer.nicegui-footer {

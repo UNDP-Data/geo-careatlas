@@ -38,3 +38,6 @@ pythonpath = ["src"]
 
 [tool.marimo.server]
 follow_symlink = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

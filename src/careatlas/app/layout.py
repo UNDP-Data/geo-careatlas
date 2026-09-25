@@ -53,7 +53,10 @@ def _is_external(url: str) -> bool:
 def _is_active(path: str, current: str) -> bool:
     if _is_external(path):
         return False
-    return current == path if path == "/" else current.startswith(path)
+    if path == "/":
+        # App pages live under /apps/ and belong to the "Apps" section.
+        return current == "/" or current.startswith("/apps/")
+    return current.startswith(path)
 
 
 def _link(label: str, url: str) -> ui.link:
@@ -178,10 +181,18 @@ def page_title(title: str) -> None:
         ui.label(title).classes("undp-title")
 
 
+_UNSET = object()
+
+
 @asynccontextmanager
-async def frame(request: Request, title: str | None = None) -> AsyncIterator[User | None]:
-    """Render the shared chrome around a page and yield the current user."""
-    user = await get_user(request)
+async def frame(request: Request, title: str | None = None, user: User | None = _UNSET) -> AsyncIterator[User | None]:
+    """Render the shared chrome around a page and yield the current user.
+
+    Pass ``user`` when the page has already looked it up, to avoid a second
+    round trip to oauth2-proxy.
+    """
+    if user is _UNSET:
+        user = await get_user(request)
     _theme()
     _header(request, user)
     with ui.column().classes("undp-container undp-main"):
@@ -189,3 +200,27 @@ async def frame(request: Request, title: str | None = None) -> AsyncIterator[Use
             page_title(title)
         yield user
     _footer()
+
+
+def notice(text: str) -> None:
+    with ui.card().classes("undp-card w-full"):
+        ui.label(text).classes("text-grey-8")
+
+
+async def confirm(title: str, text: str, action: str, require: str | None = None) -> bool:
+    """Ask for confirmation in a dialog. With ``require``, the user must type that text to proceed."""
+    with ui.dialog() as dialog, ui.card().classes("undp-dialog"):
+        ui.label(title).classes("undp-dialog__title")
+        ui.label(text)
+        typed = None
+        if require:
+            typed = ui.input(f"Type {require} to confirm").props("outlined dense").classes("w-full")
+        with ui.row().classes("w-full justify-end gap-2"):
+            ui.button("Cancel", on_click=lambda: dialog.submit(False)).props("flat")
+            button = ui.button(action, on_click=lambda: dialog.submit(True)) \
+                .props("unelevated color=secondary").classes("undp-btn undp-btn--small")
+            if typed is not None:
+                button.bind_enabled_from(typed, "value", backward=lambda value: value == require)
+    result = await dialog
+    dialog.delete()
+    return bool(result)

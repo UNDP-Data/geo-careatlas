@@ -9,6 +9,7 @@ from nicegui import ui
 
 from careatlas.app import auth, pages  # noqa: F401  pages registers routes on import
 from careatlas.app.config import settings
+from careatlas.app.runner import RUN_PREFIX, create_runner
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("nicegui").setLevel(logging.WARNING)
@@ -24,6 +25,7 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+app.mount(RUN_PREFIX, create_runner())
 nicegui_app.add_static_files("/static", STATIC_DIR)
 nicegui_app.on_shutdown(auth.close)
 

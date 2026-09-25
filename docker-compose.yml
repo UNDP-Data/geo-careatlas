@@ -58,7 +58,8 @@ services:
       OAUTH2_PROXY_GITHUB_TEAM: ${OAUTH_TEAM_NAME}
       OAUTH2_PROXY_COOKIE_SECURE: "false"
       OAUTH2_PROXY_REDIRECT_URL: "http://localhost:4180/oauth2/callback"
-      OAUTH2_PROXY_EMAIL_DOMAINS: "undp.org"
+      # Access is restricted by GitHub org/team above, matching kind/oauth/values.yaml
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
       OAUTH2_PROXY_COOKIE_SAMESITE: "lax"
       OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
       OAUTH2_PROXY_PASS_USER_HEADERS: "true"

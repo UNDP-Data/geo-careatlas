@@ -1,0 +1,13 @@
+title = "Central and Latin America"
+description = "Thematic analyses for Central and Latin America."
+
+# "public": anyone can view, signed in or not.
+# "restricted": only the members listed below can view.
+visibility = "restricted"
+
+# GitHub usernames, or teams written as "@org/team". A user gets the highest
+# role they match; owners and editors can always view.
+[members]
+owners = ["Thuhaa"]
+editors = []
+viewers = ["@UNDP-Data/geohub"]

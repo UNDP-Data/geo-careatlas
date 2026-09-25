@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import Request
+from starlette.requests import HTTPConnection
 
 from careatlas.app.config import settings
 
@@ -30,7 +30,7 @@ class User:
         return self.username or self.email
 
 
-async def get_user(request: Request) -> User | None:
+async def get_user(request: HTTPConnection) -> User | None:
     """Return the signed-in user, or None for anonymous visitors."""
     cookie = request.headers.get("cookie")
     if not settings.auth_enabled or not cookie:
@@ -54,7 +54,7 @@ async def get_user(request: Request) -> User | None:
     )
 
 
-def page_url(request: Request) -> str:
+def page_url(request: HTTPConnection) -> str:
     """Absolute URL of the current page as the browser sees it."""
     path = request.url.path
     if request.url.query:
@@ -66,11 +66,11 @@ def page_url(request: Request) -> str:
     return f"{scheme}://{host}{path}"
 
 
-def sign_in_url(request: Request) -> str:
+def sign_in_url(request: HTTPConnection) -> str:
     return f"{settings.auth_public_url}/start?{urlencode({'rd': page_url(request)})}"
 
 
-def sign_out_url(request: Request) -> str:
+def sign_out_url(request: HTTPConnection) -> str:
     return f"{settings.auth_public_url}/sign_out?{urlencode({'rd': page_url(request)})}"
 
 
