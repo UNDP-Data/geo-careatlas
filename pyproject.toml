@@ -23,6 +23,8 @@ dependencies = [
     "marimo>=0.19.11",
     "fastapi-proxy-lib[standard]>=0.3.0",
     "websockets>=16.0",
+    "altair>=6.3.0",
+    "pandas>=3.0.6",
 ]
 
 [dependency-groups]
