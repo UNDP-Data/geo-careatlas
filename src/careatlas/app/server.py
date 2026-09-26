@@ -21,6 +21,8 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).parent / "static"
+# UNDP's favicon, from https://www.undp.org/themes/custom/undpglobal/favicon.ico
+FAVICON = STATIC_DIR / "undp" / "favicon.ico"
 # How often to pick up changes pushed to the content repository from elsewhere.
 REFRESH_SECONDS = 300
 ARCHIVE_CLEANUP_SECONDS = 24 * 3600
@@ -76,6 +78,7 @@ nicegui_app.on_shutdown(auth.close)
 ui.run_with(
     app,
     title="UNDP CareAtlas",
+    favicon=FAVICON if FAVICON.is_file() else None,
     storage_secret=settings.storage_secret,
     show_welcome_message=False,
 )
