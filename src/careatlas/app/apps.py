@@ -121,9 +121,17 @@ class App:
                 return role
         return None
 
+    @property
+    def is_draft(self) -> bool:
+        """An app with no published notebooks yet. Only its owners and editors can see it."""
+        return not self.notebooks()
+
     def role_for(self, user: User | None) -> Role | None:
         """Effective role in this app, or None if the user cannot view it."""
         role = self.member_role(user)
+        if self.is_draft:
+            # Nothing to view yet: hidden from viewers until its first notebook is published.
+            return role if role is not None and role >= Role.EDITOR else None
         if role is None and self.visibility is Visibility.PUBLIC:
             return Role.VIEWER
         return role

@@ -144,7 +144,11 @@ def create_app(
     visibility: Visibility,
     creator: User,
 ) -> App:
-    """Create an app owned by ``creator`` with one starter notebook."""
+    """Create an app owned by ``creator``, with no notebooks yet.
+
+    Notebooks are added afterwards in the creator's own copy (new or uploaded),
+    so nothing but the app's settings is published when it is created.
+    """
     if not SLUG_PATTERN.match(slug):
         raise AppConfigError("Use lowercase letters, digits, '-' and '_' for the address, starting with a letter or digit")
     if not creator.username:
@@ -165,7 +169,6 @@ def create_app(
             editors=(),
             viewers=(),
         ))
-        create_notebook(app, "main", title="Overview")
     except BaseException:
         shutil.rmtree(path, ignore_errors=True)
         raise

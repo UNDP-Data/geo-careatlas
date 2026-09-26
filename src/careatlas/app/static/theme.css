@@ -627,6 +627,11 @@ body {
     color: var(--undp-black);
 }
 
+.undp-meta__item--draft,
+.undp-meta__item--draft .q-icon {
+    color: var(--undp-red) !important;
+}
+
 .undp-meta__item .q-icon {
     font-size: 1rem;
     color: var(--undp-gray-600);

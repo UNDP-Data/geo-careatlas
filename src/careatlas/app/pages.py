@@ -107,8 +107,14 @@ ROLE_ICONS = {Role.OWNER: "manage_accounts", Role.EDITOR: "edit", Role.VIEWER: "
 
 
 def _tags(app: App, role: Role | None) -> None:
-    """Access and, for members, their role, as UNDP content tags: plain uppercase labels."""
+    """Draft state, access and, for members, their role, as UNDP content tags: plain uppercase labels."""
     with ui.row().classes("undp-meta"):
+        if app.is_draft:
+            with ui.row().classes("undp-meta__item undp-meta__item--draft").tooltip(
+                "Not visible to viewers until its first notebook is published"
+            ):
+                ui.icon("edit_note")
+                ui.label("Draft")
         restricted = app.visibility is Visibility.RESTRICTED
         with ui.row().classes("undp-meta__item").tooltip(
             "Only listed members can view this app" if restricted else "Anyone can view this app"
@@ -180,7 +186,8 @@ async def new_app_page(request: Request):
             description = ui.textarea("Description").props("outlined autogrow").classes("w-full")
             ui.label("Who can view this app?").classes("undp-field-label")
             visibility = _visibility_radio(Visibility.RESTRICTED)
-            ui.label("You will be the owner. You can add editors and viewers afterwards.") \
+            ui.label("You will be the owner. After creating the app you can add notebooks, "
+                     "and editors and viewers in its settings.") \
                 .classes("text-grey-7")
 
             async def submit() -> None:
@@ -294,7 +301,8 @@ async def app_page(request: Request, slug: str, preview: str | None = None):
                     _primary_button("New notebook", lambda: new_notebook(request, app.slug, preview), icon="add")
         notebooks = app.notebooks()
         if not notebooks:
-            notice("This app has no published notebooks yet.")
+            notice("This app is a draft: it has no published notebooks yet, so only its owners and "
+                   "editors can see it. It becomes visible to viewers when its first notebook is published.")
         with ui.element("div").classes("undp-grid"):
             for notebook in notebooks:
                 _notebook_card(request, app, notebook, role, preview)

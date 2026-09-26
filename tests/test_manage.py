@@ -18,12 +18,13 @@ from careatlas.app.manage import (
 ALICE = User(username="Alice", email="alice@undp.org")
 
 
-def test_create_app_makes_creator_owner_with_starter_notebook(tmp_path):
+def test_create_app_makes_creator_owner_without_notebooks(tmp_path):
     app = create_app(tmp_path, "care", "Care Economy", "About care.", Visibility.RESTRICTED, ALICE)
     loaded = load_app(tmp_path, "care")
     assert loaded == app
     assert loaded.role_for(ALICE) is Role.OWNER
-    assert [n.name for n in loaded.notebooks()] == ["main"]
+    assert loaded.notebooks() == []
+    assert [p.name for p in (tmp_path / "care").iterdir()] == ["app.toml"]
 
 
 def test_created_notebook_is_valid_python_for_any_title(tmp_path):
@@ -86,7 +87,7 @@ def test_archived_notebook_moves_out_of_the_app(tmp_path):
     extra = create_notebook(app, "extra")
     target = archive_notebook(tmp_path, app, extra)
     assert target.parent == tmp_path / "_archive" / "care"
-    assert [n.name for n in load_app(tmp_path, "care").notebooks()] == ["main"]
+    assert load_app(tmp_path, "care").notebooks() == []
 
 
 def test_slugify():

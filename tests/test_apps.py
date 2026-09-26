@@ -90,3 +90,28 @@ def test_notebook_title_comes_from_its_first_heading(tmp_path, source, title):
     path.write_text(source)
     from careatlas.app.apps import Notebook
     assert Notebook(name="some_notebook", path=path).title == title
+
+
+def test_draft_apps_are_only_visible_to_owners_and_editors(tmp_path):
+    write_app(
+        tmp_path, "draft",
+        'visibility = "public"\n[members]\nowners = ["carol"]\neditors = ["alice"]\nviewers = ["bob"]\n',
+        notebooks=(),
+    )
+    app = load_app(tmp_path, "draft")
+    assert app.is_draft
+    assert app.role_for(None) is None
+    assert app.role_for(BOB) is None
+    assert app.role_for(ALICE) is Role.EDITOR
+    assert app.role_for(User(username="carol", email="c@undp.org")) is Role.OWNER
+    assert [a.slug for a, _ in visible_apps(tmp_path, BOB)] == []
+    assert [a.slug for a, _ in visible_apps(tmp_path, ALICE)] == ["draft"]
+
+
+def test_an_app_stops_being_a_draft_once_it_has_a_notebook(tmp_path):
+    folder = write_app(tmp_path, "draft", 'visibility = "public"\n', notebooks=())
+    assert load_app(tmp_path, "draft").role_for(None) is None
+    (folder / "main.py").write_text("import marimo\n")
+    app = load_app(tmp_path, "draft")
+    assert not app.is_draft
+    assert app.role_for(None) is Role.VIEWER
