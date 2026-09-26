@@ -20,7 +20,7 @@ from pathlib import Path
 from careatlas.app.editor import notebook_env
 from careatlas.app.manage import NOTEBOOK_PATTERN, slugify
 
-MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 CONVERT_TIMEOUT = 60
 EXTENSIONS = (".py", ".ipynb")
 

@@ -10,6 +10,7 @@ What each action shares:
 """
 
 import asyncio
+import json
 import logging
 from urllib.parse import quote, urlencode
 
@@ -21,7 +22,7 @@ from careatlas.app.apps import App, AppConfigError, Role, load_app
 from careatlas.app.auth import User, get_user, sign_in_url
 from careatlas.app.config import settings
 from careatlas.app.content import GitError, MergeConflict, Review, author_for, store, user_key
-from careatlas.app.editor import editors
+from careatlas.app.editor import RUN_ALL_HOTKEY, editors
 from careatlas.app.runner import review_notebook_url
 from careatlas.app.layout import confirm, frame, notice
 from careatlas.app.moderation import TextError, validate_commit_message
@@ -61,23 +62,26 @@ def preview_role(role: Role, preview: str | None) -> tuple[Role, str | None]:
 
 
 def preview_bar(slug: str, role: Role, shown: Role, page: str = "app") -> None:
-    """Let owners and editors see the app as a lower role would."""
+    """Let owners and editors see the app as a lower role would, as UNDP-style tabs."""
     if role < Role.EDITOR:
         return
-    options = {name: name.capitalize() for r, name in ROLE_NAMES.items() if r <= role}
 
-    def switch(event) -> None:
-        preview = None if event.value == ROLE_NAMES[role] else event.value
-        target = editor_url(slug, preview=preview) if page == "editor" and event.value != "viewer" else app_url(slug, preview)
-        ui.navigate.to(target)
+    def target(option: Role) -> str:
+        preview = None if option is role else ROLE_NAMES[option]
+        if page == "editor" and option >= Role.EDITOR:
+            return editor_url(slug, preview=preview)
+        return app_url(slug, preview)
 
-    with ui.row().classes("undp-preview-bar items-center gap-3"):
-        ui.label("View as").classes("text-sm text-grey-8")
-        ui.toggle(options, value=ROLE_NAMES[shown], on_change=switch) \
-            .props("unelevated no-caps dense toggle-color=primary toggle-text-color=white")
-        if shown < role:
-            ui.label(f"Previewing as {'an' if shown is Role.EDITOR else 'a'} {ROLE_NAMES[shown]}. "
-                     "Anything you do still uses your own permissions.").classes("text-sm text-grey-8")
+    with ui.row().classes("undp-preview-bar items-end gap-4 no-wrap"):
+        ui.label("View as").classes("undp-preview-bar__label")
+        with ui.element("nav").classes("undp-tabs").props('aria-label="View as"'):
+            for option in (r for r in (Role.OWNER, Role.EDITOR, Role.VIEWER) if r <= role):
+                link = ui.link(ROLE_NAMES[option].capitalize(), target(option)).classes("undp-tabs__tab")
+                if option is shown:
+                    link.classes("undp-tabs__tab--active").props('aria-current="page"')
+    if shown < role:
+        ui.label(f"Previewing as {'an' if shown is Role.EDITOR else 'a'} {ROLE_NAMES[shown]}. "
+                 "Anything you do still uses your own permissions.").classes("text-sm text-grey-8")
 
 
 def _load(slug: str) -> App | None:
@@ -127,6 +131,27 @@ async def _ask_message(title: str, action: str, hint: str, value: str = "") -> s
     return result
 
 
+def _hotkey_event(hotkey: str) -> str:
+    """JavaScript KeyboardEvent options for a marimo hotkey such as "Alt-Shift-r"."""
+    *modifiers, key = hotkey.split("-")
+    options = {"key": key, "code": f"Key{key.upper()}", "bubbles": True, "cancelable": True}
+    for modifier in modifiers:
+        options[{"Alt": "altKey", "Shift": "shiftKey", "Ctrl": "ctrlKey", "Meta": "metaKey"}[modifier]] = True
+    return json.dumps(options)
+
+
+def run_all_cells() -> None:
+    """Ask the embedded marimo editor to re-run every cell, using its own "Re-run all cells" command."""
+    ui.run_javascript(f"""
+        const frame = document.getElementById("undp-editor-frame");
+        if (frame && frame.contentDocument) {{
+            frame.contentWindow.focus();
+            frame.contentDocument.activeElement?.blur();
+            frame.contentDocument.dispatchEvent(new KeyboardEvent("keydown", {_hotkey_event(RUN_ALL_HOTKEY)}));
+        }}
+    """)
+
+
 @ui.page("/apps/{slug}/edit")
 async def edit_page(request: Request, slug: str, notebook: str | None = None, preview: str | None = None):
     user = await get_user(request)
@@ -168,6 +193,8 @@ async def edit_page(request: Request, slug: str, notebook: str | None = None, pr
                     preview_bar(slug, real_role, role, page="editor")
                 status = ui.label("Checking for changes…").classes("undp-editor-status")
             with ui.row().classes("gap-2 items-center"):
+                _button("Run all", run_all_cells, icon="play_arrow") \
+                    .tooltip("Run every cell in the open notebook")
                 discard_button = _button("Discard changes", lambda: discard(), icon="undo")
                 latest_button = _button("Get latest", lambda: get_latest(), icon="sync")
                 commit_button = _button("Commit changes", lambda: commit(), icon="save", primary=not is_owner)
@@ -176,7 +203,7 @@ async def edit_page(request: Request, slug: str, notebook: str | None = None, pr
                 else:
                     share_button = _button("Submit for review", lambda: submit(), icon="send", primary=True)
 
-        ui.element("iframe").props(f'src="{session.url(notebook_file)}" title="Notebook editor"') \
+        ui.element("iframe").props(f'id="undp-editor-frame" src="{session.url(notebook_file)}" title="Notebook editor"') \
             .classes("undp-editor-frame")
 
         async def refresh() -> None:
@@ -336,7 +363,9 @@ async def upload_notebook(request: Request, slug: str) -> None:
 
         ui.upload(
             on_upload=received,
-            on_rejected=lambda: ui.notify("Choose a .py or .ipynb file under 5 MB.", type="warning"),
+            on_rejected=lambda: ui.notify(
+                f"Choose a .py or .ipynb file up to {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.", type="warning"
+            ),
             auto_upload=True,
             max_files=1,
             max_file_size=MAX_UPLOAD_BYTES,
@@ -431,7 +460,8 @@ async def _show_review(review: Review) -> None:
         with ui.row().classes("w-full justify-between items-center no-wrap"):
             ui.label(f"Changes from {review.user}").classes("undp-dialog__title")
             ui.button(icon="close", on_click=dialog.close).props("flat round")
-        with ui.tabs().props("align=left no-caps").classes("w-full") as tabs:
+        with ui.tabs().props("align=left indicator-color=secondary active-color=black narrow-indicator") \
+                .classes("w-full undp-q-tabs") as tabs:
             changes_tab = ui.tab("changes", label="Changes")
             run_tab = ui.tab("run", label="Run submitted version")
         with ui.tab_panels(tabs, value=changes_tab).classes("w-full undp-review__panels"):

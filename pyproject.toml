@@ -25,6 +25,7 @@ dependencies = [
     "websockets>=16.0",
     "altair>=6.3.0",
     "pandas>=3.0.6",
+    "tomlkit>=0.14.0",
 ]
 
 [dependency-groups]

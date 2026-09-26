@@ -436,6 +436,7 @@ dependencies = [
     { name = "pandas" },
     { name = "pyarrow" },
     { name = "shapely" },
+    { name = "tomlkit" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "websockets" },
 ]
@@ -459,6 +460,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=3.0.6" },
     { name = "pyarrow", specifier = ">=23.0.1" },
     { name = "shapely", specifier = ">=2.1.2" },
+    { name = "tomlkit", specifier = ">=0.14.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
     { name = "websockets", specifier = ">=16.0" },
 ]

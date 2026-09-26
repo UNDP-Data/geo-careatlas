@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import httpx
+import tomlkit
 from starlette.requests import HTTPConnection
 from starlette.types import Receive, Scope, Send
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -43,6 +44,13 @@ EDIT_PREFIX = "/edit"
 STARTUP_TIMEOUT = 30.0
 # Environment variables notebooks must not see.
 SECRET_ENV = ("GITHUB_PAT_TOKEN", "NICEGUI_STORAGE_SECRET", "OAUTH_CLIENT_SECRET", "OAUTH_COOKIE_KEY")
+# With these set, marimo treats CareAtlas as the uv project and installs packages with
+# "uv add", which would edit CareAtlas's pyproject.toml and uv.lock. Without them it
+# uses "uv pip install" into the notebooks' environment.
+UV_PROJECT_ENV = ("UV", "UV_PROJECT_ENVIRONMENT")
+# marimo's "Re-run all cells" has no default shortcut. Each user's editor settings bind it
+# to this key combination, which the CareAtlas toolbar's "Run all" button sends to the editor.
+RUN_ALL_HOTKEY = "Alt-Shift-r"
 HOP_BY_HOP = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer",
               "transfer-encoding", "upgrade", "host", "content-length"}
 
@@ -77,9 +85,36 @@ def _free_port() -> int:
 
 def notebook_env() -> dict[str, str]:
     """Environment for processes that handle notebook code: the server's, without its secrets."""
-    env = {k: v for k, v in os.environ.items() if k not in SECRET_ENV and not k.startswith("AWS_")}
+    env = {k: v for k, v in os.environ.items()
+           if k not in SECRET_ENV and k not in UV_PROJECT_ENV and not k.startswith("AWS_")}
     env["MARIMO_SKIP_UPDATE_CHECK"] = "1"
     return env
+
+
+def prepare_user_settings(user_dir: Path) -> Path:
+    """Set up the user's marimo settings for CareAtlas.
+
+    - Bind "Re-run all cells" for the toolbar's Run all button.
+    - Install missing packages with uv: the notebooks' environment is created by uv and
+      has no pip, so marimo's default installer fails. Packages installed this way go
+      into the environment shared by all notebooks and are lost when it is rebuilt;
+      anything a published notebook needs belongs in CareAtlas's pyproject.toml.
+
+    marimo looks for .marimo.toml in the notebook's folder and its parents, so a file in
+    <work>/<user>/ applies to all of that user's editor sessions and is never committed
+    (it is outside every worktree). Other settings the user changes in marimo are kept.
+    """
+    path = user_dir / ".marimo.toml"
+    document = tomlkit.parse(path.read_text(encoding="utf-8")) if path.is_file() else tomlkit.document()
+    before = tomlkit.dumps(document)
+    overrides = document.setdefault("keymap", tomlkit.table()).setdefault("overrides", tomlkit.table())
+    overrides["global.runAll"] = RUN_ALL_HOTKEY
+    packages = document.setdefault("package_management", tomlkit.table())
+    if packages.get("manager", "pip") == "pip":
+        packages["manager"] = "uv"
+    if tomlkit.dumps(document) != before:
+        path.write_text(tomlkit.dumps(document), encoding="utf-8")
+    return path
 
 
 class EditorManager:
@@ -108,6 +143,7 @@ class EditorManager:
             return session
 
     def _start(self, user: str, app: str, folder: Path) -> EditSession:
+        prepare_user_settings(folder.parent.parent)
         session_id = secrets.token_urlsafe(16)
         port = _free_port()
         command = [

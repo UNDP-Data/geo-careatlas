@@ -101,13 +101,22 @@ def _secondary_button(label: str, on_click, icon: str | None = None) -> ui.butto
         .props("outline no-wrap color=primary").classes("undp-btn undp-btn--small")
 
 
+ROLE_ICONS = {Role.OWNER: "manage_accounts", Role.EDITOR: "edit", Role.VIEWER: "visibility"}
+
+
 def _tags(app: App, role: Role | None) -> None:
-    """Visibility and, for members, their role (as shown, which may be a preview)."""
-    with ui.row().classes("gap-2"):
-        if app.visibility is Visibility.RESTRICTED:
-            ui.label("Restricted").classes("undp-tag")
+    """Access and, for members, their role, as UNDP content tags: plain uppercase labels."""
+    with ui.row().classes("undp-meta"):
+        restricted = app.visibility is Visibility.RESTRICTED
+        with ui.row().classes("undp-meta__item").tooltip(
+            "Only listed members can view this app" if restricted else "Anyone can view this app"
+        ):
+            ui.icon("lock" if restricted else "public")
+            ui.label("Restricted" if restricted else "Public")
         if role is not None:
-            ui.label(ROLE_LABELS[role]).classes("undp-tag undp-tag--accent")
+            with ui.row().classes("undp-meta__item").tooltip("Your role in this app"):
+                ui.icon(ROLE_ICONS[role])
+                ui.label(ROLE_LABELS[role])
 
 
 @ui.page("/")
@@ -139,9 +148,10 @@ async def home(request: Request) -> None:
         with ui.element("div").classes("undp-grid"):
             for app, _ in apps:
                 with ui.link(target=f"/apps/{app.slug}").classes("undp-app-card"):
+                    # Tags above the title, as on UNDP content cards
+                    _tags(app, app.member_role(user))
                     ui.label(app.title).classes("undp-app-card__title")
                     ui.label(app.description or "No description.").classes("undp-app-card__text")
-                    _tags(app, app.member_role(user))
 
 
 def _visibility_radio(value: Visibility) -> ui.radio:
