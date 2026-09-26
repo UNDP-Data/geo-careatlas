@@ -25,6 +25,7 @@ from careatlas.app.content import GitError, MergeConflict, Review, author_for, s
 from careatlas.app.editor import RUN_ALL_HOTKEY, editors
 from careatlas.app.runner import review_notebook_url
 from careatlas.app.layout import confirm, frame, notice
+from careatlas.app.manage import create_notebook, slugify
 from careatlas.app.moderation import TextError, validate_commit_message
 from careatlas.app.uploads import MAX_UPLOAD_BYTES, UploadError, notebook_name_for, save_to_workspace, to_marimo
 
@@ -346,6 +347,81 @@ async def unpublished_changes_notice(app: App, user: User, role: Role) -> None:
                     ui.label(f"You have {'; '.join(parts)}. {next_step} "
                              "'View published' shows what viewers see.").classes("text-grey-8")
             _button("Continue editing", lambda: ui.navigate.to(editor_url(app.slug)), primary=True)
+
+
+async def new_notebook(request: Request, slug: str, preview: str | None = None) -> None:
+    """Create a notebook from the starter template in the user's own copy of the app, then open it."""
+    with ui.dialog() as dialog, ui.card().classes("undp-dialog"):
+        ui.label("New notebook").classes("undp-dialog__title")
+        ui.label("It is added to your own copy of the app; nothing is shared until you commit.") \
+            .classes("text-grey-8 text-sm")
+        title = ui.input("Title").props("outlined dense").classes("w-full")
+        name = ui.input("File name", suffix=".py").props("outlined dense").classes("w-full")
+        title.on_value_change(lambda e: name.set_value(slugify(e.value or "")))
+        with ui.row().classes("w-full justify-end gap-2"):
+            ui.button("Cancel", on_click=lambda: dialog.submit(False)).props("flat")
+            _button("Create", lambda: dialog.submit(True), primary=True)
+    created = await dialog
+    dialog.delete()
+    if not created:
+        return
+
+    checked = await _current_role(request, slug)
+    if checked is None:
+        return
+    user = checked[0]
+    notebook_name = name.value.strip()
+
+    def create() -> None:
+        tree = store.workspace(slug, user_key(user)).parent
+        app = load_app(tree, slug)
+        if app is None:
+            raise AppConfigError("This app no longer exists")
+        create_notebook(app, notebook_name, title=title.value.strip() or None)
+
+    try:
+        await asyncio.to_thread(create)
+    except (AppConfigError, GitError) as exc:
+        ui.notify(str(exc), type="negative")
+        return
+    logger.info("%s created notebook %s in their copy of %s", user.username, notebook_name, slug)
+    ui.navigate.to(editor_url(slug, notebook_name, preview))
+
+
+async def your_copy_section(app: App, user: User, published: set[str], preview: str | None) -> None:
+    """Notebooks that exist only in the user's own copy, e.g. created or uploaded but not yet published."""
+    key = user_key(user)
+
+    def unpublished_notebooks():
+        tree = store.existing_workspace(app.slug, key)
+        if tree is None:
+            return []
+        copy = load_app(tree, app.slug)
+        return [n for n in copy.notebooks() if n.name not in published] if copy else []
+
+    try:
+        notebooks = await asyncio.to_thread(unpublished_notebooks)
+    except (AppConfigError, GitError, OSError) as exc:
+        logger.warning("Could not read %s's copy of %s: %s", user.username, app.slug, exc)
+        return
+    if not notebooks:
+        return
+
+    ui.label("In your copy").classes("undp-section-title")
+    ui.label("Not published yet. Only you can see these until you commit and publish or submit them.") \
+        .classes("text-grey-8 text-sm")
+    with ui.element("div").classes("undp-grid"):
+        for notebook in notebooks:
+            url = editor_url(app.slug, notebook.name, preview)
+            with ui.card().classes("undp-card undp-card--draft undp-notebook undp-notebook--link") \
+                    .on("click", js_handler=f"() => {{ window.location.href = {json.dumps(url)}; }}"):
+                with ui.row().classes("undp-meta"):
+                    with ui.row().classes("undp-meta__item"):
+                        ui.icon("edit_note")
+                        ui.label("In your copy")
+                ui.label(notebook.title).classes("undp-app-card__title")
+                ui.label(notebook.description or "No description.").classes("undp-app-card__text")
+                ui.link("Continue editing", url).classes("undp-cta-link")
 
 
 async def upload_notebook(request: Request, slug: str) -> None:

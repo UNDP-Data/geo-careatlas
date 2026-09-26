@@ -316,3 +316,10 @@ def test_review_checkout_shows_the_submitted_version_and_is_removed_after_review
 
     store.reject(review)
     assert not checkout.exists()
+
+
+def test_existing_workspace_is_found_without_being_created(store):
+    assert store.existing_workspace("care", "alice") is None
+    assert not store.has_workspace("care", "alice")
+    folder = store.workspace("care", "alice")
+    assert store.existing_workspace("care", "alice") == folder.parent

@@ -366,6 +366,10 @@ class ContentStore:
         self._check_names(app, user)
         return (self.work_root / user / app / ".git").exists()
 
+    def existing_workspace(self, app: str, user: str) -> Path | None:
+        """The root of the user's worktree for an app, if they have one. Never creates it."""
+        return self.work_root / user / app if self.has_workspace(app, user) else None
+
     def pending_review(self, app: str, user: str) -> Review | None:
         """The user's submission for this app that is waiting for an owner, if any."""
         with self._lock:

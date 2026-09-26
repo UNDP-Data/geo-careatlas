@@ -18,6 +18,8 @@ from careatlas.app.content import GitError, author_for, store
 from careatlas.app.editing import (
     app_url,
     editor_url,
+    new_notebook,
+    your_copy_section,
     preview_bar,
     preview_role,
     reviews_section,
@@ -29,7 +31,6 @@ from careatlas.app.manage import (
     archive_app,
     archive_notebook,
     create_app,
-    create_notebook,
     normalize_members,
     save_app,
     slugify,
@@ -208,33 +209,6 @@ async def new_app_page(request: Request):
             create_button = _primary_button("Create app", submit)
 
 
-async def _add_notebook(request: Request, slug: str) -> None:
-    with ui.dialog() as dialog, ui.card().classes("undp-dialog"):
-        ui.label("New notebook").classes("undp-dialog__title")
-        title = ui.input("Title").props("outlined dense").classes("w-full")
-        name = ui.input("File name", suffix=".py").props("outlined dense").classes("w-full")
-        title.on_value_change(lambda e: name.set_value(slugify(e.value or "")))
-        with ui.row().classes("w-full justify-end gap-2"):
-            ui.button("Cancel", on_click=lambda: dialog.submit(False)).props("flat")
-            _primary_button("Create", lambda: dialog.submit(True))
-    created = await dialog
-    dialog.delete()
-    if not created:
-        return
-
-    checked = await _owner_check(request, slug)
-    if checked is None:
-        return
-    _, user = checked
-    notebook_name = name.value.strip()
-
-    def change(tree: Path) -> None:
-        create_notebook(_owned_app(tree, slug, user), notebook_name, title=title.value.strip() or None)
-
-    if await _commit_to_main(f"Add notebook {slug}/{notebook_name}", user, change):
-        ui.navigate.reload()
-
-
 async def _archive_notebook(request: Request, slug: str, notebook_name: str) -> None:
     if not await confirm(
         "Archive notebook?",
@@ -309,8 +283,6 @@ async def app_page(request: Request, slug: str, preview: str | None = None):
             with ui.row().classes("w-full items-center justify-between no-wrap"):
                 _tags(app, role if app.member_role(user) is not None else None)
                 with ui.row().classes("undp-icon-actions no-wrap gap-1"):
-                    if role >= Role.EDITOR:
-                        _icon_link("edit", "Open editor", editor_url(app.slug, preview=preview))
                     if is_owner:
                         _icon_link("settings", "Settings", f"/apps/{app.slug}/settings")
             page_title(app.title)
@@ -325,14 +297,15 @@ async def app_page(request: Request, slug: str, preview: str | None = None):
             with ui.row().classes("gap-2"):
                 if role >= Role.EDITOR:
                     _secondary_button("Upload notebook", lambda: upload_notebook(request, app.slug), icon="upload")
-                if is_owner:
-                    _primary_button("New notebook", lambda: _add_notebook(request, app.slug), icon="add")
+                    _primary_button("New notebook", lambda: new_notebook(request, app.slug, preview), icon="add")
         notebooks = app.notebooks()
         if not notebooks:
-            notice("This app has no notebooks yet.")
+            notice("This app has no published notebooks yet.")
         with ui.element("div").classes("undp-grid"):
             for notebook in notebooks:
                 _notebook_card(request, app, notebook, role, preview)
+        if role >= Role.EDITOR:
+            await your_copy_section(app, user, {n.name for n in notebooks}, preview)
 
         if is_owner:
             await reviews_section(request, app)

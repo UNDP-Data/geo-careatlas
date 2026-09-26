@@ -413,6 +413,12 @@ body {
     border-top-color: var(--undp-red) !important;
 }
 
+/* Unpublished work in the user's own copy */
+.undp-card--draft.q-card {
+    border-top-style: dashed;
+    border-top-color: var(--undp-gray-600);
+}
+
 .undp-notebook--link {
     cursor: pointer;
     transition: box-shadow 0.2s ease;
