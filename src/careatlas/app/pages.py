@@ -106,12 +106,6 @@ def _secondary_button(label: str, on_click, icon: str | None = None) -> ui.butto
 ROLE_ICONS = {Role.OWNER: "manage_accounts", Role.EDITOR: "edit", Role.VIEWER: "visibility"}
 
 
-def _icon_link(icon: str, label: str, url: str) -> None:
-    """A compact icon action with a tooltip, such as Open editor or Settings."""
-    ui.button(icon=icon).props(f'flat round dense color=grey-7 aria-label="{label}"').tooltip(label) \
-        .on("click", js_handler=f"() => {{ window.location.href = {json.dumps(url)}; }}")
-
-
 def _tags(app: App, role: Role | None) -> None:
     """Access and, for members, their role, as UNDP content tags: plain uppercase labels."""
     with ui.row().classes("undp-meta"):
@@ -278,13 +272,13 @@ async def app_page(request: Request, slug: str, preview: str | None = None):
     role, preview = preview_role(real_role, preview)
     is_owner = role is Role.OWNER
     async with frame(request, user=user):
-        # Same order as the app cards: access and role above the title, actions as icons.
+        # Same order as the app cards: access and role above the title, with Settings for owners.
         with ui.column().classes("undp-app-header"):
             with ui.row().classes("w-full items-center justify-between no-wrap"):
                 _tags(app, role if app.member_role(user) is not None else None)
-                with ui.row().classes("undp-icon-actions no-wrap gap-1"):
-                    if is_owner:
-                        _icon_link("settings", "Settings", f"/apps/{app.slug}/settings")
+                if is_owner:
+                    _secondary_button("Settings", lambda: ui.navigate.to(f"/apps/{app.slug}/settings"),
+                                      icon="settings")
             page_title(app.title)
             if app.description:
                 ui.label(app.description).classes("undp-lead")
