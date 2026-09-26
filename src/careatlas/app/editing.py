@@ -11,7 +11,7 @@ What each action shares:
 
 import asyncio
 import logging
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from fastapi import Request
 from fastapi.responses import RedirectResponse
@@ -22,6 +22,7 @@ from careatlas.app.auth import User, get_user, sign_in_url
 from careatlas.app.config import settings
 from careatlas.app.content import GitError, MergeConflict, Review, author_for, store, user_key
 from careatlas.app.editor import editors
+from careatlas.app.runner import review_notebook_url
 from careatlas.app.layout import confirm, frame, notice
 from careatlas.app.moderation import TextError, validate_commit_message
 from careatlas.app.uploads import MAX_UPLOAD_BYTES, UploadError, notebook_name_for, save_to_workspace, to_marimo
@@ -31,8 +32,52 @@ logger = logging.getLogger(__name__)
 STATUS_SECONDS = 5.0
 
 
-def editor_url(slug: str, notebook: str | None = None) -> str:
-    return f"/apps/{slug}/edit" + (f"?notebook={quote(notebook)}" if notebook else "")
+ROLE_NAMES = {Role.OWNER: "owner", Role.EDITOR: "editor", Role.VIEWER: "viewer"}
+PREVIEW_ROLES = {"editor": Role.EDITOR, "viewer": Role.VIEWER}
+
+
+def _query(**params: str | None) -> str:
+    present = {k: v for k, v in params.items() if v}
+    return f"?{urlencode(present, quote_via=quote)}" if present else ""
+
+
+def editor_url(slug: str, notebook: str | None = None, preview: str | None = None) -> str:
+    return f"/apps/{slug}/edit" + _query(notebook=notebook, preview=preview)
+
+
+def app_url(slug: str, preview: str | None = None) -> str:
+    return f"/apps/{slug}" + _query(preview=preview)
+
+
+def preview_role(role: Role, preview: str | None) -> tuple[Role, str | None]:
+    """The role to show the page as, and the preview name to keep in links.
+
+    Previewing only ever lowers what is shown; actions still check the user's real role.
+    """
+    shown = PREVIEW_ROLES.get(preview or "")
+    if shown is None or shown >= role:
+        return role, None
+    return shown, preview
+
+
+def preview_bar(slug: str, role: Role, shown: Role, page: str = "app") -> None:
+    """Let owners and editors see the app as a lower role would."""
+    if role < Role.EDITOR:
+        return
+    options = {name: name.capitalize() for r, name in ROLE_NAMES.items() if r <= role}
+
+    def switch(event) -> None:
+        preview = None if event.value == ROLE_NAMES[role] else event.value
+        target = editor_url(slug, preview=preview) if page == "editor" and event.value != "viewer" else app_url(slug, preview)
+        ui.navigate.to(target)
+
+    with ui.row().classes("undp-preview-bar items-center gap-3"):
+        ui.label("View as").classes("text-sm text-grey-8")
+        ui.toggle(options, value=ROLE_NAMES[shown], on_change=switch) \
+            .props("unelevated no-caps dense toggle-color=primary toggle-text-color=white")
+        if shown < role:
+            ui.label(f"Previewing as {'an' if shown is Role.EDITOR else 'a'} {ROLE_NAMES[shown]}. "
+                     "Anything you do still uses your own permissions.").classes("text-sm text-grey-8")
 
 
 def _load(slug: str) -> App | None:
@@ -83,7 +128,7 @@ async def _ask_message(title: str, action: str, hint: str, value: str = "") -> s
 
 
 @ui.page("/apps/{slug}/edit")
-async def edit_page(request: Request, slug: str, notebook: str | None = None):
+async def edit_page(request: Request, slug: str, notebook: str | None = None, preview: str | None = None):
     user = await get_user(request)
     app = _load(slug)
     role = app.role_for(user) if app else None
@@ -103,6 +148,10 @@ async def edit_page(request: Request, slug: str, notebook: str | None = None):
         return
 
     key = user_key(user)
+    real_role = role
+    role, preview = preview_role(real_role, preview)
+    if role < Role.EDITOR:
+        return RedirectResponse(app_url(slug, preview), status_code=303)
     is_owner = role is Role.OWNER
     # The notebook may exist only in the user's own copy, e.g. just uploaded and not yet published.
     notebook_file = None
@@ -114,7 +163,9 @@ async def edit_page(request: Request, slug: str, notebook: str | None = None):
     async with frame(request, user=user, wide=True):
         with ui.row().classes("undp-editor-toolbar"):
             with ui.column().classes("gap-0"):
-                ui.link(f"← {app.title}", f"/apps/{slug}").classes("undp-back-link")
+                with ui.row().classes("items-center gap-4"):
+                    ui.link(f"← {app.title}", app_url(slug, preview)).classes("undp-back-link")
+                    preview_bar(slug, real_role, role, page="editor")
                 status = ui.label("Checking for changes…").classes("undp-editor-status")
             with ui.row().classes("gap-2 items-center"):
                 discard_button = _button("Discard changes", lambda: discard(), icon="undo")
@@ -364,18 +415,58 @@ async def reviews_section(request: Request, app: App) -> None:
                     ui.label(", ".join(f.split("/", 1)[1] for f in review.files) or "No file changes") \
                         .classes("text-grey-8")
                 with ui.row().classes("gap-2"):
-                    _button("View changes", lambda r=review: _show_diff(r))
+                    _button("View changes", lambda r=review: _show_review(r))
                     _button("Reject", lambda r=review: _decide(request, r, approve=False))
                     _button("Approve and publish", lambda r=review: _decide(request, r, approve=True), primary=True)
 
 
-async def _show_diff(review: Review) -> None:
+async def _show_review(review: Review) -> None:
+    """The submitted changes as a diff, and the submitted notebooks running read-only."""
     diff = await asyncio.to_thread(store.review_diff, review)
-    with ui.dialog().props("maximized") as dialog, ui.card().classes("w-full h-full"):
-        with ui.row().classes("w-full justify-between items-center"):
+    changed_notebooks = [
+        path[len(review.app) + 1:-3] for path in review.files
+        if path.startswith(f"{review.app}/") and path.endswith(".py")
+    ]
+    with ui.dialog().props("maximized") as dialog, ui.card().classes("undp-review w-full h-full"):
+        with ui.row().classes("w-full justify-between items-center no-wrap"):
             ui.label(f"Changes from {review.user}").classes("undp-dialog__title")
             ui.button(icon="close", on_click=dialog.close).props("flat round")
-        ui.code(diff or "No changes.", language="diff").classes("w-full undp-diff")
+        with ui.tabs().props("align=left no-caps").classes("w-full") as tabs:
+            changes_tab = ui.tab("changes", label="Changes")
+            run_tab = ui.tab("run", label="Run submitted version")
+        with ui.tab_panels(tabs, value=changes_tab).classes("w-full undp-review__panels"):
+            with ui.tab_panel(changes_tab):
+                ui.code(diff or "No changes.", language="diff").classes("w-full undp-diff")
+            with ui.tab_panel(run_tab).classes("undp-review__run"):
+                run_area = ui.column().classes("w-full h-full gap-2")
+
+    loaded = False
+
+    async def show_run() -> None:
+        nonlocal loaded
+        if loaded or tabs.value not in ("run", run_tab):
+            return
+        loaded = True
+        checkout = await asyncio.to_thread(store.review_checkout, review)
+        available = [n for n in changed_notebooks if (checkout / review.app / f"{n}.py").is_file()]
+        with run_area:
+            if not available:
+                notice("This submission doesn't add or change any notebooks.")
+                return
+            ui.label(
+                "The notebook as submitted, read-only. Its code runs on the server, as it does when editing."
+            ).classes("text-sm text-grey-8")
+            if len(available) > 1:
+                ui.select(available, value=available[0], label="Notebook",
+                          on_change=lambda e: show(e.value)).props("outlined dense").classes("w-64")
+            frame = ui.element("iframe").classes("undp-review-frame")
+
+            def show(name: str) -> None:
+                frame.props(f'src="{review_notebook_url(review.app, review.user, name)}"')
+
+            show(available[0])
+
+    tabs.on_value_change(show_run)
     dialog.open()
 
 

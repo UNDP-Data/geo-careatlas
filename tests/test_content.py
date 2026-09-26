@@ -300,3 +300,19 @@ def test_workspace_state_can_be_read_without_creating_one(store):
     store.submit_review("care", "alice")
     assert store.has_workspace("care", "alice")
     assert store.pending_review("care", "alice").files == ("care/main.py",)
+
+
+def test_review_checkout_shows_the_submitted_version_and_is_removed_after_review(store):
+    folder = store.workspace("care", "alice")
+    (folder / "main.py").write_text("x = 2\n")
+    store.commit("care", "alice", "Set x to two", ALICE)
+    review = store.submit_review("care", "alice")
+    (folder / "main.py").write_text("x = 3\n")
+    store.commit("care", "alice", "Set x to three", ALICE)
+
+    checkout = store.review_checkout(review)
+    assert (checkout / "care" / "main.py").read_text() == "x = 2\n"
+    assert store.review_checkout(review) == checkout
+
+    store.reject(review)
+    assert not checkout.exists()

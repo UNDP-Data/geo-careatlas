@@ -84,3 +84,21 @@ async def test_archive_is_never_served(content, monkeypatch):
     signed_in_as(monkeypatch, None)
     (content / "_archive" / "open-20260101-000000").mkdir(parents=True)
     assert not await runner.authorize("_archive/open-20260101-000000/main/", scope("/run/_archive/open-20260101-000000/main/"))
+
+
+
+async def test_submitted_versions_are_for_owners_only(content, monkeypatch):
+    write_app(content, "owned", 'visibility = "public"\n[members]\nowners = ["olivia"]\neditors = ["alice"]\n')
+    path = "owned/alice/owned/main/"
+    signed_in_as(monkeypatch, User(username="Olivia", email="o@undp.org"))
+    assert await runner.authorize_review(path, scope(f"/review/{path}"))
+    for user in (None, User(username="alice", email="a@undp.org"), User(username="bob", email="b@undp.org")):
+        signed_in_as(monkeypatch, user)
+        assert not await runner.authorize_review(path, scope(f"/review/{path}"))
+
+
+@pytest.mark.parametrize("path", ["owned/alice/closed/main/", "owned/alice/../closed/main/", "owned/alice/owned"])
+async def test_review_paths_stay_inside_the_reviewed_app(content, monkeypatch, path):
+    write_app(content, "owned", 'visibility = "public"\n[members]\nowners = ["olivia"]\n')
+    signed_in_as(monkeypatch, User(username="olivia", email="o@undp.org"))
+    assert not await runner.authorize_review(path, scope(f"/review/{path}"))

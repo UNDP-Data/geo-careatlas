@@ -8,6 +8,7 @@ worktrees that share its object store::
       published/                detached worktree at main: what viewers see
       work/<user>/<app>/        worktree on branch edit/<app>/<user>: one editor's copy
       tmp/                      short-lived worktrees used to build commits on main
+      reviews/<app>/<user>/     detached worktree at a submitted commit, run read-only by owners
 
 Editors change files in their own worktree; nothing leaves it until they
 commit, which commits the app's folder and pushes their branch. Publishing
@@ -107,6 +108,7 @@ class ContentStore:
         self.published = data_dir / "published"
         self.work_root = data_dir / "work"
         self.tmp_root = data_dir / "tmp"
+        self.review_root = data_dir / "reviews"
         self._lock = threading.RLock()
 
     # --- git plumbing -----------------------------------------------------
@@ -526,6 +528,25 @@ class ContentStore:
         base = self._out("merge-base", MAIN, review.commit)
         return self._out("log", "--reverse", "--no-merges", "--format=%s", f"{base}..{review.commit}").splitlines()
 
+    def review_checkout(self, review: Review) -> Path:
+        """A read-only checkout of the submitted version, for owners to run. Returns its root."""
+        path = self.review_root / review.app / review.user
+        with self._lock:
+            self._check_names(review.app, review.user)
+            if (path / ".git").exists():
+                self._git("checkout", "--quiet", "--force", "--detach", review.commit, cwd=path)
+                self._git("clean", "--quiet", "-fd", cwd=path)
+            else:
+                shutil.rmtree(path, ignore_errors=True)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                self._git("worktree", "add", "--quiet", "--detach", str(path), review.commit)
+        return path
+
+    def _remove_review_checkout(self, app: str, user: str) -> None:
+        path = self.review_root / app / user
+        self._git("worktree", "remove", "--force", str(path), check=False)
+        shutil.rmtree(path, ignore_errors=True)
+
     def approve(self, review: Review, owner: Author, message: str) -> str:
         """Publish a review as one commit credited to the editor, with the owner's message."""
         with self._lock:
@@ -533,6 +554,7 @@ class ContentStore:
             full_message = f"{message}\n\nApproved-by: {owner.name} <{owner.email}>"
             new = self.publish_commit(review.app, review.commit, full_message, Author(name, email))
             self._git("update-ref", "-d", f"{REVIEW_REFS}/{review.app}/{review.user}")
+            self._remove_review_checkout(review.app, review.user)
             # Tidy the editor's branch if they have not continued working on it.
             branch = self.branch_name(review.app, review.user)
             if (self._out("rev-parse", branch) == review.commit
@@ -543,6 +565,7 @@ class ContentStore:
     def reject(self, review: Review) -> None:
         with self._lock:
             self._git("update-ref", "-d", f"{REVIEW_REFS}/{review.app}/{review.user}")
+            self._remove_review_checkout(review.app, review.user)
 
 
 def author_for(user: User) -> Author:

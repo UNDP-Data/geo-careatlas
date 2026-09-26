@@ -1,8 +1,10 @@
-"""Serves app notebooks read-only through marimo, enforcing each app's access rules.
+"""Serves notebooks read-only through marimo, enforcing each app's access rules.
 
-A notebook is served at ``/run/<app>/<notebook>``. marimo calls ``authorize``
-before every HTTP and websocket request under that prefix, including its
-static assets, so restricted apps are never reachable without the viewer role.
+Published notebooks are served at ``/run/<app>/<notebook>``. Versions submitted
+for review are served to the app's owners at
+``/review/<app>/<editor>/<app>/<notebook>``, from a checkout of the submitted
+commit. marimo calls the matching ``authorize`` function before every HTTP and
+websocket request under each prefix, including its static assets.
 """
 
 import logging
@@ -12,25 +14,34 @@ from starlette.exceptions import HTTPException
 from starlette.requests import HTTPConnection
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from careatlas.app.apps import AppConfigError, Visibility, load_app
+from careatlas.app.apps import AppConfigError, Role, Visibility, load_app
 from careatlas.app.auth import get_user, sign_in_url
 from careatlas.app.config import settings
 
 logger = logging.getLogger(__name__)
 
 RUN_PREFIX = "/run"
+REVIEW_PREFIX = "/review"
 
 
 def notebook_url(app_slug: str, notebook_name: str) -> str:
     return f"{RUN_PREFIX}/{app_slug}/{notebook_name}/"
 
 
+def review_notebook_url(app_slug: str, editor: str, notebook_name: str) -> str:
+    return f"{REVIEW_PREFIX}/{app_slug}/{editor}/{app_slug}/{notebook_name}/"
+
+
+def _unsafe(parts: list[str]) -> bool:
+    # marimo resolves the path against a directory on disk, so "." and ".." could
+    # escape the app checked here and reach another app's notebooks.
+    return any(part in (".", "..") or "\\" in part for part in parts)
+
+
 async def authorize(app_path: str, scope: Scope) -> bool:
     """marimo validate callback. Returning False yields 404; raising HTTPException sets the status."""
     parts = app_path.split("/")
-    # marimo resolves the path against the content directory, so "." and ".." could
-    # escape the app checked here and reach another app's notebooks.
-    if any(part in (".", "..") or "\\" in part for part in parts):
+    if _unsafe(parts):
         return False
 
     try:
@@ -53,14 +64,27 @@ async def authorize(app_path: str, scope: Scope) -> bool:
     return False
 
 
-def create_runner() -> ASGIApp:
+async def authorize_review(app_path: str, scope: Scope) -> bool:
+    """Only owners of the app may run a submitted version, and only that app's notebooks in it."""
+    parts = app_path.split("/")
+    # <app>/<editor>/<app>/<notebook>: the checkout holds the whole repository, so the
+    # notebook must be inside the reviewed app's own folder.
+    if _unsafe(parts) or len(parts) < 4 or parts[2] != parts[0]:
+        return False
+    try:
+        app = load_app(settings.content_dir, parts[0])
+    except AppConfigError:
+        return False
+    if app is None:
+        return False
+    user = await get_user(HTTPConnection(scope))
+    return app.role_for(user) is Role.OWNER
+
+
+def _create(prefix: str, directory: str, validate) -> ASGIApp:
     marimo_app = (
         marimo.create_asgi_app(quiet=True, skew_protection=True)
-        .with_dynamic_directory(
-            path=RUN_PREFIX,
-            directory=str(settings.content_dir),
-            validate_callback=authorize,
-        )
+        .with_dynamic_directory(path=prefix, directory=directory, validate_callback=validate)
         .build()
     )
 
@@ -68,9 +92,17 @@ def create_runner() -> ASGIApp:
         # Mounting moves the prefix into root_path, but marimo matches on the full path.
         if scope["type"] in ("http", "websocket"):
             path = scope.get("path", "")
-            if not path.startswith(f"{RUN_PREFIX}/"):
-                scope["path"] = f"{RUN_PREFIX}{path}"
+            if not path.startswith(f"{prefix}/"):
+                scope["path"] = f"{prefix}{path}"
             scope["root_path"] = ""
         await marimo_app(scope, receive, send)
 
     return runner
+
+
+def create_runner() -> ASGIApp:
+    return _create(RUN_PREFIX, str(settings.content_dir), authorize)
+
+
+def create_review_runner() -> ASGIApp:
+    return _create(REVIEW_PREFIX, str(settings.data_dir / "reviews"), authorize_review)

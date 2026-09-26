@@ -14,7 +14,15 @@ from careatlas.app.apps import App, AppConfigError, Notebook, Role, Visibility, 
 from careatlas.app.auth import User, get_user, sign_in_url
 from careatlas.app.config import settings
 from careatlas.app.content import GitError, author_for, store
-from careatlas.app.editing import editor_url, reviews_section, unpublished_changes_notice, upload_notebook
+from careatlas.app.editing import (
+    app_url,
+    editor_url,
+    preview_bar,
+    preview_role,
+    reviews_section,
+    unpublished_changes_notice,
+    upload_notebook,
+)
 from careatlas.app.layout import confirm, frame, notice, page_title
 from careatlas.app.manage import (
     archive_app,
@@ -93,11 +101,11 @@ def _secondary_button(label: str, on_click, icon: str | None = None) -> ui.butto
         .props("outline no-wrap color=primary").classes("undp-btn undp-btn--small")
 
 
-def _tags(app: App, user: User | None) -> None:
+def _tags(app: App, role: Role | None) -> None:
+    """Visibility and, for members, their role (as shown, which may be a preview)."""
     with ui.row().classes("gap-2"):
         if app.visibility is Visibility.RESTRICTED:
             ui.label("Restricted").classes("undp-tag")
-        role = app.member_role(user)
         if role is not None:
             ui.label(ROLE_LABELS[role]).classes("undp-tag undp-tag--accent")
 
@@ -133,7 +141,7 @@ async def home(request: Request) -> None:
                 with ui.link(target=f"/apps/{app.slug}").classes("undp-app-card"):
                     ui.label(app.title).classes("undp-app-card__title")
                     ui.label(app.description or "No description.").classes("undp-app-card__text")
-                    _tags(app, user)
+                    _tags(app, app.member_role(user))
 
 
 def _visibility_radio(value: Visibility) -> ui.radio:
@@ -240,7 +248,7 @@ async def _archive_notebook(request: Request, slug: str, notebook_name: str) -> 
         ui.navigate.reload()
 
 
-def _notebook_card(request: Request, app: App, notebook: Notebook, role: Role) -> None:
+def _notebook_card(request: Request, app: App, notebook: Notebook, role: Role, preview: str | None) -> None:
     with ui.card().classes("undp-card undp-notebook"):
         with ui.row().classes("w-full justify-between items-start no-wrap"):
             ui.label(notebook.title).classes("undp-app-card__title")
@@ -253,11 +261,11 @@ def _notebook_card(request: Request, app: App, notebook: Notebook, role: Role) -
             ui.link("View published" if role >= Role.EDITOR else "Open",
                     notebook_url(app.slug, notebook.name)).classes("undp-cta-link")
             if role >= Role.EDITOR:
-                ui.link("Edit", editor_url(app.slug, notebook.name)).classes("undp-cta-link")
+                ui.link("Edit", editor_url(app.slug, notebook.name, preview)).classes("undp-cta-link")
 
 
 @ui.page("/apps/{slug}")
-async def app_page(request: Request, slug: str):
+async def app_page(request: Request, slug: str, preview: str | None = None):
     user = await get_user(request)
     app = _load(slug)
     role = app.role_for(user) if app else None
@@ -270,15 +278,19 @@ async def app_page(request: Request, slug: str):
             notice(NOT_FOUND)
         return
 
+    real_role = role
+    role, preview = preview_role(real_role, preview)
     is_owner = role is Role.OWNER
     async with frame(request, app.title, user=user):
+        preview_bar(app.slug, real_role, role)
         if app.description:
             ui.label(app.description).classes("undp-lead")
-        _tags(app, user)
+        _tags(app, role if app.member_role(user) is not None else None)
         if role >= Role.EDITOR:
             await unpublished_changes_notice(app, user, role)
             with ui.row().classes("gap-2"):
-                _secondary_button("Open editor", lambda: ui.navigate.to(editor_url(app.slug)), icon="edit")
+                _secondary_button("Open editor", lambda: ui.navigate.to(editor_url(app.slug, preview=preview)),
+                                  icon="edit")
                 if is_owner:
                     _secondary_button("Settings", lambda: ui.navigate.to(f"/apps/{app.slug}/settings"),
                                       icon="settings")
@@ -295,7 +307,7 @@ async def app_page(request: Request, slug: str):
             notice("This app has no notebooks yet.")
         with ui.element("div").classes("undp-grid"):
             for notebook in notebooks:
-                _notebook_card(request, app, notebook, role)
+                _notebook_card(request, app, notebook, role, preview)
 
         if is_owner:
             await reviews_section(request, app)

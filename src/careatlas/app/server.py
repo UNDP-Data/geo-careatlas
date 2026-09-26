@@ -12,7 +12,7 @@ from careatlas.app import auth, pages  # noqa: F401  pages registers routes on i
 from careatlas.app.config import settings
 from careatlas.app.content import GitError, store
 from careatlas.app.editor import EDIT_PREFIX, edit_proxy, editors
-from careatlas.app.runner import RUN_PREFIX, create_runner
+from careatlas.app.runner import REVIEW_PREFIX, RUN_PREFIX, create_review_runner, create_runner
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("nicegui").setLevel(logging.WARNING)
@@ -66,6 +66,7 @@ async def prepare_content() -> None:
 
 
 app.mount(RUN_PREFIX, create_runner())
+app.mount(REVIEW_PREFIX, create_review_runner())
 app.mount(EDIT_PREFIX, edit_proxy)
 nicegui_app.add_static_files("/static", STATIC_DIR)
 nicegui_app.on_startup(prepare_content)

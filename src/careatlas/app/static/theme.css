@@ -508,6 +508,51 @@ body {
     }
 }
 
+.undp-preview-bar {
+    padding: 0.25rem 0;
+}
+
+.undp-preview-bar .q-btn-toggle {
+    border: 1px solid var(--undp-blue);
+    border-radius: 0;
+}
+
+.undp-preview-bar .q-btn-toggle .q-btn {
+    padding: 0.25rem 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--undp-blue);
+}
+
+.undp-preview-bar .q-btn-toggle .q-btn + .q-btn {
+    border-left: 1px solid var(--undp-blue);
+}
+
+.undp-review.q-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem 1.5rem;
+}
+
+.undp-review__panels {
+    flex: 1;
+    min-height: 0;
+}
+
+.undp-review__run {
+    height: 100%;
+    padding: 0.5rem 0 0;
+}
+
+.undp-review-frame {
+    display: block;
+    width: 100%;
+    height: calc(100vh - 12rem);
+    border: 1px solid #d4d6d8;
+    background: #fff;
+}
+
 .undp-diff {
     max-height: calc(100vh - 8rem);
     overflow: auto;
