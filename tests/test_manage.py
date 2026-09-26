@@ -128,3 +128,12 @@ def test_folder_emptied_by_removal_is_deleted(tmp_path):
     (tmp_path / "_archive" / "care" / "nb-20260101-000000.py").write_text("")
     remove_expired_archive(tmp_path, 30, datetime(2026, 9, 25, tzinfo=timezone.utc))
     assert not (tmp_path / "_archive" / "care").exists()
+
+
+def test_archived_app_slug(tmp_path):
+    from careatlas.app.manage import archived_app_slug
+
+    archive = tmp_path / "_archive"
+    assert archived_app_slug(archive / "care_economy-20260101-000000") == "care_economy"
+    assert archived_app_slug(archive / "care" / "notebook-20260101-000000.py") is None
+    assert archived_app_slug(archive / "unrecognised") is None

@@ -23,8 +23,14 @@ The name records when it was archived:
 | Notebook | `_archive/<app>/<notebook>-<YYYYMMDD-HHMMSS>.py` |
 
 After `ARCHIVE_RETENTION_DAYS` (30 by default) CareAtlas removes the item from
-the repository, but it stays in the git history. Restoring it takes a clone of
-the content repository and write access to it:
+the repository, but it stays in the git history. For an archived app, it also
+deletes what editors had for it: their copies on the server (including anything
+they hadn't committed), their `edit/<app>/<user>` branches on GitHub and any
+open review requests. This is skipped if a new app has taken the same name in
+the meantime.
+
+Restoring the app itself takes a clone of the content repository and write
+access to it:
 
 ```bash
 git clone https://github.com/UNDP-Data/geo-careatlas-notebooks.git

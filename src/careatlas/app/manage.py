@@ -217,6 +217,15 @@ def archived_at(entry: Path) -> datetime | None:
     return datetime.strptime(match.group(1), TIMESTAMP_FORMAT).replace(tzinfo=timezone.utc)
 
 
+def archived_app_slug(entry: Path) -> str | None:
+    """The app an archived app folder came from, e.g. "_archive/care-20260101-000000" -> "care"."""
+    match = ARCHIVE_ENTRY_PATTERN.search(entry.name)
+    if not match or entry.parent.name != ARCHIVE_DIR or entry.suffix == ".py":
+        return None
+    slug = entry.name[:match.start()]
+    return slug if SLUG_PATTERN.match(slug) else None
+
+
 def expired_archive_entries(content_dir: Path, retention_days: int, now: datetime | None = None) -> list[Path]:
     """Archived apps and notebooks older than the retention period, oldest first."""
     archive = content_dir / ARCHIVE_DIR

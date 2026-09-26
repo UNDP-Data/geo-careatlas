@@ -417,7 +417,9 @@ async def app_settings_page(request: Request, slug: str):
 
             ui.label("Archive app").classes("undp-section-title")
             ui.label(
-                f"Removes the app and all its notebooks from CareAtlas. {_archive_note(plural=True)}"
+                f"Removes the app and all its notebooks from CareAtlas. {_archive_note(plural=True)} "
+                "When it is finally removed, editors' copies of the app, including changes they "
+                "haven't committed, are deleted too."
             ).classes("text-grey-8")
 
             async def archive() -> None:

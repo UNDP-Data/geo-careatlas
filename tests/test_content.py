@@ -323,3 +323,50 @@ def test_existing_workspace_is_found_without_being_created(store):
     assert not store.has_workspace("care", "alice")
     folder = store.workspace("care", "alice")
     assert store.existing_workspace("care", "alice") == folder.parent
+
+
+def _archive_care_as_old(tree):
+    (tree / "_archive").mkdir(exist_ok=True)
+    (tree / "care").rename(tree / "_archive" / "care-20200101-000000")
+
+
+def _alice_submits_a_change(store):
+    folder = store.workspace("care", "alice")
+    (folder / "main.py").write_text("x = 2\n")
+    store.commit("care", "alice", "Set x to two", ALICE)
+    review = store.submit_review("care", "alice")
+    store.review_checkout(review)
+    (folder / "draft.py").write_text("uncommitted = True\n")
+
+
+def remote_branches(remote):
+    return git("--git-dir", str(remote), "branch", "--format=%(refname:short)", cwd=remote.parent).split()
+
+
+def test_expired_archived_app_takes_its_copies_branches_and_reviews_with_it(store, remote):
+    _alice_submits_a_change(store)
+    store.change_main("Archive app care", OWNER, _archive_care_as_old)
+    assert "edit/care/alice" in remote_branches(remote)
+
+    store.remove_expired_archive(30)
+    assert not store.has_workspace("care", "alice")
+    assert not (store.work_root / "alice" / "care").exists()
+    assert "edit/care/alice" not in remote_branches(remote)
+    assert git("--git-dir", str(store.repo), "for-each-ref", "refs/heads/edit/care/", cwd=remote.parent) == ""
+    assert store.reviews("care") == []
+    assert not (store.review_root / "care").exists()
+
+
+def test_leftovers_are_kept_when_a_new_app_has_taken_the_name(store, remote):
+    _alice_submits_a_change(store)
+
+    def archive_and_recreate(tree):
+        _archive_care_as_old(tree)
+        (tree / "care").mkdir()
+        (tree / "care" / "app.toml").write_text(APP_TOML)
+
+    store.change_main("Archive care and create a new care app", OWNER, archive_and_recreate)
+    store.remove_expired_archive(30)
+    assert store.has_workspace("care", "alice")
+    assert "edit/care/alice" in remote_branches(remote)
+    assert len(store.reviews("care")) == 1

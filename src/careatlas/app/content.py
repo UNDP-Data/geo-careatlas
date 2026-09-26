@@ -35,7 +35,7 @@ from pathlib import Path
 from careatlas.app.apps import APP_FILE, SLUG_PATTERN
 from careatlas.app.auth import User
 from careatlas.app.config import SAMPLE_CONTENT_DIR, settings
-from careatlas.app.manage import expired_archive_entries, remove_expired_archive
+from careatlas.app.manage import archived_app_slug, expired_archive_entries, remove_expired_archive
 
 logger = logging.getLogger(__name__)
 
@@ -319,12 +319,51 @@ class ContentStore:
                 f"- {entry.relative_to(self.published).as_posix()}"
                 for entry in expired_archive_entries(self.published, retention_days)
             )
+            expired_apps = {
+                slug for entry in expired_archive_entries(self.published, retention_days)
+                if (slug := archived_app_slug(entry))
+            }
             self.change_main(
                 f"Remove archived items older than {retention_days} days\n\n{listing}",
                 Author(BOT_NAME, BOT_EMAIL),
                 change,
             )
+            for slug in sorted(expired_apps):
+                # A new app may have taken the name since; its copies and branches must stay.
+                if (self.published / slug).exists():
+                    continue
+                self._remove_app_leftovers(slug)
             return removed
+
+    def _remove_app_leftovers(self, app: str) -> None:
+        """Delete editors' copies, branches and review requests of an app that no longer exists.
+
+        Uncommitted work in those copies is lost; committed work remains in the
+        repository's history until the branches are garbage collected on GitHub.
+        """
+        for tree in sorted(self.work_root.glob(f"*/{app}")):
+            self._git("worktree", "remove", "--force", str(tree), check=False)
+            shutil.rmtree(tree, ignore_errors=True)
+        self._git("worktree", "prune")
+
+        prefix = f"edit/{app}/"
+        local = self._out("for-each-ref", "--format=%(refname:short)", f"refs/heads/{prefix}").split()
+        remote = [ref.removeprefix("origin/") for ref in
+                  self._out("for-each-ref", "--format=%(refname:short)", f"refs/remotes/origin/{prefix}").split()]
+        for branch in local:
+            self._git("branch", "--quiet", "-D", branch, check=False)
+        if self.remote and remote:
+            self._git("push", "--quiet", "origin", "--delete", *remote, network=True, check=False)
+            self._fetch()
+
+        for ref in self._out("for-each-ref", "--format=%(refname)", f"{REVIEW_REFS}/{app}/").split():
+            self._git("update-ref", "-d", ref)
+        review_dir = self.review_root / app
+        for tree in sorted(review_dir.glob("*")):
+            self._git("worktree", "remove", "--force", str(tree), check=False)
+        shutil.rmtree(review_dir, ignore_errors=True)
+        self._git("worktree", "prune")
+        logger.info("Removed editors' copies, branches and review requests of archived app %s", app)
 
     # --- editor workspaces ---------------------------------------------------
 
