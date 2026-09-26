@@ -413,6 +413,26 @@ body {
     border-top-color: var(--undp-red) !important;
 }
 
+.undp-notebook--link {
+    cursor: pointer;
+    transition: box-shadow 0.2s ease;
+}
+
+.undp-notebook--link:hover,
+.undp-notebook--link:focus-within {
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
+}
+
+.undp-icon-actions .q-btn:hover,
+.undp-icon-actions .q-btn:focus-visible {
+    color: var(--undp-blue) !important;
+}
+
+.undp-app-header {
+    width: 100%;
+    gap: 0.75rem;
+}
+
 .undp-notebook {
     gap: 0.75rem;
 }

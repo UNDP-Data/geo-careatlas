@@ -1,6 +1,7 @@
 """Site pages. Importing this module registers the routes with NiceGUI."""
 
 import asyncio
+import json
 import dataclasses
 import logging
 from collections.abc import Callable
@@ -102,6 +103,12 @@ def _secondary_button(label: str, on_click, icon: str | None = None) -> ui.butto
 
 
 ROLE_ICONS = {Role.OWNER: "manage_accounts", Role.EDITOR: "edit", Role.VIEWER: "visibility"}
+
+
+def _icon_link(icon: str, label: str, url: str) -> None:
+    """A compact icon action with a tooltip, such as Open editor or Settings."""
+    ui.button(icon=icon).props(f'flat round dense color=grey-7 aria-label="{label}"').tooltip(label) \
+        .on("click", js_handler=f"() => {{ window.location.href = {json.dumps(url)}; }}")
 
 
 def _tags(app: App, role: Role | None) -> None:
@@ -252,19 +259,31 @@ async def _archive_notebook(request: Request, slug: str, notebook_name: str) -> 
 
 
 def _notebook_card(request: Request, app: App, notebook: Notebook, role: Role, preview: str | None) -> None:
-    with ui.card().classes("undp-card undp-notebook"):
-        with ui.row().classes("w-full justify-between items-start no-wrap"):
-            ui.label(notebook.title).classes("undp-app-card__title")
-            if role is Role.OWNER:
-                ui.button(icon="archive", on_click=lambda: _archive_notebook(request, app.slug, notebook.name)) \
-                    .props("flat round dense color=grey-8").tooltip("Archive notebook")
+    """A UNDP content card: the whole card opens the notebook, with icon actions for editors and owners."""
+    view_url = notebook_url(app.slug, notebook.name)
+    # Handled in the browser, so opening a notebook doesn't wait for the server.
+    with ui.card().classes("undp-card undp-notebook undp-notebook--link") \
+            .on("click", js_handler=f"() => {{ window.location.href = {json.dumps(view_url)}; }}"):
+        with ui.row().classes("w-full items-center justify-between no-wrap"):
+            with ui.row().classes("undp-meta"):
+                with ui.row().classes("undp-meta__item"):
+                    ui.icon("description")
+                    ui.label("Notebook")
+            with ui.row().classes("undp-icon-actions no-wrap gap-1"):
+                # click.stop keeps these from also opening the notebook through the card.
+                if role >= Role.EDITOR:
+                    edit_url = editor_url(app.slug, notebook.name, preview)
+                    ui.button(icon="edit").props(f'flat round dense color=grey-7 aria-label="Edit {notebook.title}"') \
+                        .tooltip("Edit") \
+                        .on("click.stop", js_handler=f"() => {{ window.location.href = {json.dumps(edit_url)}; }}")
+                if role is Role.OWNER:
+                    ui.button(icon="archive").props(f'flat round dense color=grey-7 aria-label="Archive {notebook.title}"') \
+                        .tooltip("Archive") \
+                        .on("click.stop", lambda: _archive_notebook(request, app.slug, notebook.name))
+        ui.label(notebook.title).classes("undp-app-card__title")
         ui.label(notebook.description or "No description.").classes("undp-app-card__text")
-        with ui.row().classes("gap-6"):
-            # Editors may have a different version in their own copy, so name the one this opens.
-            ui.link("View published" if role >= Role.EDITOR else "Open",
-                    notebook_url(app.slug, notebook.name)).classes("undp-cta-link")
-            if role >= Role.EDITOR:
-                ui.link("Edit", editor_url(app.slug, notebook.name, preview)).classes("undp-cta-link")
+        # Editors may have a different version in their own copy, so name the one this opens.
+        ui.link("View published" if role >= Role.EDITOR else "Open", view_url).classes("undp-cta-link")
 
 
 @ui.page("/apps/{slug}")
@@ -284,19 +303,22 @@ async def app_page(request: Request, slug: str, preview: str | None = None):
     real_role = role
     role, preview = preview_role(real_role, preview)
     is_owner = role is Role.OWNER
-    async with frame(request, app.title, user=user):
+    async with frame(request, user=user):
+        # Same order as the app cards: access and role above the title, actions as icons.
+        with ui.column().classes("undp-app-header"):
+            with ui.row().classes("w-full items-center justify-between no-wrap"):
+                _tags(app, role if app.member_role(user) is not None else None)
+                with ui.row().classes("undp-icon-actions no-wrap gap-1"):
+                    if role >= Role.EDITOR:
+                        _icon_link("edit", "Open editor", editor_url(app.slug, preview=preview))
+                    if is_owner:
+                        _icon_link("settings", "Settings", f"/apps/{app.slug}/settings")
+            page_title(app.title)
+            if app.description:
+                ui.label(app.description).classes("undp-lead")
         preview_bar(app.slug, real_role, role)
-        if app.description:
-            ui.label(app.description).classes("undp-lead")
-        _tags(app, role if app.member_role(user) is not None else None)
         if role >= Role.EDITOR:
             await unpublished_changes_notice(app, user, role)
-            with ui.row().classes("gap-2"):
-                _secondary_button("Open editor", lambda: ui.navigate.to(editor_url(app.slug, preview=preview)),
-                                  icon="edit")
-                if is_owner:
-                    _secondary_button("Settings", lambda: ui.navigate.to(f"/apps/{app.slug}/settings"),
-                                      icon="settings")
 
         with ui.row().classes("undp-page-heading"):
             ui.label("Notebooks").classes("undp-section-title")

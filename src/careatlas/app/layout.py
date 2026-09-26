@@ -28,8 +28,9 @@ GEOHUB_URL = "https://geohub.data.undp.org"
 
 NAV_ITEMS = [
     ("Apps", "/"),
+    ("Care Georeferencing Tool", "https://www.undp.org/asia-pacific/care-georeferencing-tool"),
     ("Gender Equality", "https://www.undp.org/gender-equality"),
-    ("GeoHub", GEOHUB_URL),
+    # ("GeoHub", GEOHUB_URL),
 ]
 
 FOOTER_LINKS = [

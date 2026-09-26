@@ -15,7 +15,7 @@ or more marimo notebooks::
     visibility = "public"        # or "restricted"
 
     [members]
-    owners = ["octocat"]
+    owners = ["Thuhaa"]
     editors = ["@UNDP-Data/geohub"]
     viewers = []
 
