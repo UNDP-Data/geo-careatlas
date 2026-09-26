@@ -159,6 +159,50 @@ body {
     font-weight: 700;
 }
 
+.undp-account.q-btn {
+    padding: 0.25rem 0.5rem;
+    border-radius: 2rem !important;
+}
+
+.undp-account .q-btn__content {
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+}
+
+.undp-account__name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--undp-black);
+}
+
+.undp-avatar {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--undp-blue);
+    color: #fff;
+}
+
+.undp-avatar__initials {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.undp-avatar img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
 .undp-header__actions {
     display: flex;
     align-items: center;
@@ -186,30 +230,9 @@ body {
     text-transform: uppercase;
 }
 
-.undp-hero {
-    gap: 1rem;
-    width: 100%;
-    padding: 2.5rem;
-    background: #fff;
-    border-left: 0.5rem solid var(--undp-blue);
-}
 
-.undp-hero__title {
-    font-size: 3rem;
-    font-weight: 700;
-    line-height: 1.1;
-}
 
-.undp-hero__lead {
-    max-width: 40rem;
-    font-size: 1.25rem;
-    color: var(--undp-gray-600);
-}
 
-.undp-hero__meta {
-    font-weight: 600;
-    color: var(--undp-blue);
-}
 
 .undp-card {
     padding: 2rem;
@@ -736,13 +759,7 @@ body {
         display: none;
     }
 
-    .undp-hero {
-        padding: 1.5rem;
-    }
 
-    .undp-hero__title {
-        font-size: 2.25rem;
-    }
 
     .undp-mobile-nav {
         padding: 0 1.5rem;

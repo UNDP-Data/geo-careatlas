@@ -122,23 +122,16 @@ def _tags(app: App, role: Role | None) -> None:
 @ui.page("/")
 async def home(request: Request) -> None:
     async with frame(request) as user:
-        with ui.column().classes("undp-hero"):
-            ui.label("CareAtlas").classes("undp-hero__title")
-            ui.label(
-                "Interactive notebooks and maps on care, gender and development, "
-                "published by the UNDP Gender Team."
-            ).classes("undp-hero__lead")
-            if user:
-                ui.label(f"Signed in as {user.display_name}").classes("undp-hero__meta")
-            elif settings.auth_enabled:
-                url = sign_in_url(request)
-                ui.button("Sign in with GitHub", on_click=lambda: ui.navigate.to(url)) \
-                    .props("unelevated no-wrap color=secondary").classes("undp-btn")
-
         with ui.row().classes("undp-page-heading"):
             page_title("Apps")
             if user:
                 _primary_button("New app", lambda: ui.navigate.to("/new"), icon="add")
+        if user is None:
+            # Context for visitors arriving from a link; signed-in users already know the site.
+            ui.label(
+                "Interactive notebooks and maps on care, gender and development, "
+                "published by the UNDP Gender Team."
+            ).classes("undp-lead")
 
         apps = visible_apps(settings.content_dir, user)
         if not apps:

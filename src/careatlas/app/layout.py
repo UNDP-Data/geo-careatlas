@@ -6,9 +6,11 @@ component. The language switcher and search are left out, since CareAtlas does
 not provide them.
 """
 
+import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import Request
 from nicegui import ui
@@ -96,13 +98,36 @@ def _account(request: Request, user: User | None) -> None:
         return
 
     url = sign_out_url(request)
-    with ui.button(icon="account_circle").props("flat round"):
+    with ui.button().props("flat no-caps").classes("undp-account") \
+            .props(f'aria-label="Account: {user.display_name}"'):
+        _avatar(user)
+        ui.label(user.display_name).classes("undp-account__name gt-sm")
         with ui.menu().props('anchor="bottom right" self="top right"'):
             with ui.column().classes("px-4 py-3 gap-0"):
                 ui.label(user.display_name).classes("font-semibold")
                 ui.label(user.email).classes("text-xs text-grey-7")
             ui.separator()
             ui.menu_item("Sign out", on_click=lambda: ui.navigate.to(url))
+
+
+def _initials(user: User) -> str:
+    parts = [p for p in re.split(r"[\s._@-]+", user.display_name) if p]
+    if not parts:
+        return "?"
+    if len(parts) == 1:
+        return parts[0][:2].upper()
+    return (parts[0][0] + parts[1][0]).upper()
+
+
+def _avatar(user: User) -> None:
+    """The user's GitHub profile picture, over their initials in case it can't be loaded."""
+    with ui.element("span").classes("undp-avatar").props('aria-hidden="true"'):
+        ui.label(_initials(user)).classes("undp-avatar__initials")
+        if user.username:
+            ui.element("img").props(
+                f'src="https://github.com/{quote(user.username)}.png?size=80" alt="" '
+                'loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()"'
+            )
 
 
 def _hamburger() -> None:
@@ -127,7 +152,11 @@ def _mobile_nav(request: Request, user: User | None, current: str) -> None:
                 if user is None:
                     ui.link("Sign in", sign_in_url(request))
                 else:
-                    ui.label(f"Signed in as {user.display_name}").classes("undp-mobile-nav__user")
+                    with ui.row().classes("undp-mobile-nav__user items-center no-wrap gap-3"):
+                        _avatar(user)
+                        with ui.column().classes("gap-0"):
+                            ui.label(user.display_name).classes("font-semibold text-black")
+                            ui.label(user.email).classes("text-xs")
                     ui.link("Sign out", sign_out_url(request))
 
 
