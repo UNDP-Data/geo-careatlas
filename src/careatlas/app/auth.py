@@ -1,79 +1,78 @@
-from fastapi import Request
-import httpx
-from nicegui import ui
+"""Session checks against oauth2-proxy.
+
+oauth2-proxy owns the GitHub login flow and the session cookie. The app forwards
+the browser's cookie to the proxy's ``/auth`` endpoint, which answers 202 with
+``X-Auth-Request-*`` headers for a valid session and 401 otherwise.
+"""
+
 import logging
+from dataclasses import dataclass
+from urllib.parse import urlencode
+
+import httpx
+from fastapi import Request
+
+from careatlas.app.config import settings
+
 logger = logging.getLogger(__name__)
 
-
-def is_authenticated(identity: dict):
-    # Returns True if we have a real email, False if it's the default "Guest User"
-    return identity.get("email") and identity["email"] != "Guest User"
+_client = httpx.AsyncClient(timeout=3.0)
 
 
-def get_user_identity(request: Request):
-    """Checks both potential header prefixes (AKS vs Local Docker)."""
-    h = request.headers
-    
-    # Try AKS/Auth-Request style, then Local/Forwarded style
-    email = h.get("x-auth-request-email") or h.get("x-forwarded-email")
-    user = h.get("x-auth-request-user") or h.get("x-forwarded-user")
-    
-    # Do the same for groups if you need them
-    groups_raw = h.get("x-auth-request-groups") or h.get("x-forwarded-groups") or ""
-    groups = [g.strip() for g in groups_raw.split(",") if g.strip()]
+@dataclass(frozen=True)
+class User:
+    username: str
+    email: str
+    groups: tuple[str, ...] = ()
 
-    return {
-        "email": email or "Guest User",
-        "user": user or "Guest",
-        "groups": groups
-    }
+    @property
+    def display_name(self) -> str:
+        return self.username or self.email
 
-def check_auth(url: str, request: Request, forward_headers=False):
 
-    with httpx.Client(timeout=3.0) as client:
-        try:
-            headers = {
-                # Use the actual scheme/host the browser used
-                "X-Forwarded-Proto": request.headers.get("x-forwarded-proto", request.url.scheme),
-                "X-Forwarded-Host": request.headers.get("x-forwarded-host", request.headers.get("host", "")),
-                "X-Forwarded-Uri": request.url.path + (("?" + request.url.query) if request.url.query else ""),
-            }
+async def get_user(request: Request) -> User | None:
+    """Return the signed-in user, or None for anonymous visitors."""
+    cookie = request.headers.get("cookie")
+    if not settings.auth_enabled or not cookie:
+        return None
 
-            # Also forward original User-Agent (optional but helps some setups)
-            ua = request.headers.get("user-agent")
-            if ua:
-                headers["User-Agent"] = ua
+    try:
+        response = await _client.get(f"{settings.auth_internal_url}/auth", headers={"Cookie": cookie})
+    except httpx.HTTPError as exc:
+        logger.warning("oauth2-proxy unreachable at %s: %s", settings.auth_internal_url, exc)
+        return None
 
-            # Forward cookies exactly
-            response = client.get(url, cookies=request.cookies, headers=headers)
+    if response.status_code not in (200, 202):
+        return None
 
-            if response.status_code in (200, 202):
-                email = response.headers.get("x-auth-request-email", "Guest")
-                groups_raw = response.headers.get("x-auth-request-groups", "")
-                groups = [g.strip() for g in groups_raw.split(",")] if groups_raw else []
-                username = response.headers.get("x-auth-request-user", "")
-                
-                if forward_headers:
-                    # 1. Extract the identity headers from the HTTPX response
-                    auth_headers = {
-                        "x-auth-request-email": response.headers.get("x-auth-request-email", "Guest"),
-                        "x-auth-request-user": response.headers.get("x-auth-request-user", ""),
-                        "x-auth-request-groups": response.headers.get("x-auth-request-groups", ""),
-                    }
-                    current_headers = dict(request.headers)
-                    current_headers.update(auth_headers)
-                    request.scope["headers"] = [
-                        (k.lower().encode("latin-1"), v.encode("latin-1"))
-                        for k, v in current_headers.items()
-                    ]
-                    if hasattr(request, "_headers"):
-                       
-                        delattr(request, "_headers")
-                   
-                
-                return {"is_authenticated": True, "email": email, "groups": groups, "user": username}
-            
-        except Exception as e:
-            logger.error(f"Auth Service unreachable: {e}")
+    headers = response.headers
+    groups = tuple(g.strip() for g in headers.get("x-auth-request-groups", "").split(",") if g.strip())
+    return User(
+        username=headers.get("x-auth-request-user", ""),
+        email=headers.get("x-auth-request-email", ""),
+        groups=groups,
+    )
 
-    return {"is_authenticated": False}
+
+def page_url(request: Request) -> str:
+    """Absolute URL of the current page as the browser sees it."""
+    path = request.url.path
+    if request.url.query:
+        path += f"?{request.url.query}"
+    if settings.public_url:
+        return settings.public_url + path
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host", request.headers.get("host", ""))
+    return f"{scheme}://{host}{path}"
+
+
+def sign_in_url(request: Request) -> str:
+    return f"{settings.auth_public_url}/start?{urlencode({'rd': page_url(request)})}"
+
+
+def sign_out_url(request: Request) -> str:
+    return f"{settings.auth_public_url}/sign_out?{urlencode({'rd': page_url(request)})}"
+
+
+async def close() -> None:
+    await _client.aclose()
