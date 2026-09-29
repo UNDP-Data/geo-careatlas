@@ -11,7 +11,7 @@ app = marimo.App(width="medium", auto_download=["html"])
 @app.cell
 def menu():
     import marimo as mo
-    from careatlas.app.repo import create_sidebar
+    from careatlas.old.repo import create_sidebar
     sidebar = create_sidebar()
     sidebar
     return (mo,)

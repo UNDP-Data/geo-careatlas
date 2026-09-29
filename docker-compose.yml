@@ -16,7 +16,9 @@ services:
       - .env
     environment:
       - NICEGUI_STORAGE_SECRET=${OAUTH_COOKIE_KEY}
-      - AUTH_URL=http://localhost:4180/oauth2
+      - AUTH_INTERNAL_URL=http://auth-proxy:4180/oauth2
+      - AUTH_PUBLIC_URL=http://localhost:4180/oauth2
+      - PUBLIC_URL=http://localhost:8080
       - FORWARDED_ALLOW_IPS=*
       - ENV=dev
       - GITHUB_PAT_TOKEN=${GITHUB_PAT_TOKEN}
@@ -25,7 +27,7 @@ services:
     image: mitmproxy/mitmproxy:latest
     container_name: careatlas-mitm
     volumes:
-      - ./src/careatlas/app/proxy.py:/home/mitmproxy/proxy.py
+      - ./src/careatlas/old/proxy.py:/home/mitmproxy/proxy.py
     command: >
       mitmdump --mode reverse:http://api:8001/
       -s /home/mitmproxy/proxy.py
